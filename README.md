@@ -6,5 +6,12 @@ Start with `CAPSULE.md`, then `docs/PLAN.md` and `docs/TASKS.md`. Agent prompts 
 
 ```
 pip install -r requirements.txt
+pip install -e .
 cp .env.example .env   # fill in keys, never commit
+```
+
+Run the event scraper with:
+
+```
+python -m ghostleads.scraping run --event-url <url> --event-name <name>
 ```
