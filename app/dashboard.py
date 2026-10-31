@@ -18,6 +18,20 @@ from ghostleads.backend import attendees, draft, needle, replies, send  # noqa: 
 from ghostleads.backend.config import SEED_EVENT, connect, key  # noqa: E402
 
 st.set_page_config(page_title="Ghost Leads", layout="wide")
+MD_SPECIAL = set("\\`*_{}[]()#+-.!|>~<$:")
+
+
+def esc(v):
+    """Scraped and LinkedIn text is untrusted: escape Markdown so it renders as plain text."""
+    text = str(v if v is not None else "").replace("\r", " ").replace("\n", " ")
+    return "".join("\\" + ch if ch in MD_SPECIAL else ch for ch in text)
+
+
+def link(label, url):
+    """Markdown link only for plain http(s) URLs; anything else is shown as escaped text."""
+    ok = isinstance(url, str) and url.startswith(("https://", "http://")) and not any(c in url for c in " ()<>\n")
+    return f"[{esc(label)}]({url})" if ok else esc(label)
+
 conn = connect()
 conn.execute(attendees.TABLE)
 
@@ -98,8 +112,8 @@ with tab_att:
     review = att[att.decision == "review"]
     for _, a in review.iterrows():  # human check for the uncertain middle
         with st.container(border=True):
-            st.markdown(f"**{a.person_name}**: {a.headline or ''}  \n{a.reason}")
-            st.write((a.comment_text or a.post_text or "")[:400])
+            st.markdown(f"**{esc(a.person_name)}**: {esc(a.headline)}  \n{esc(a.reason)}")
+            st.text((a.comment_text or a.post_text or "")[:400])
             k, d = st.columns(2)
             if k.button("Keep", key=f"k{a.id}"):
                 conn.execute("UPDATE attendees SET decision='keep' WHERE id=?", (int(a.id),)); conn.commit(); st.rerun()
@@ -120,8 +134,9 @@ with tab_msg:
         send.sync(conn); st.rerun()
     for _, r in leads[leads.message.notna()].iterrows():
         with st.container(border=True):
-            st.markdown(f"**{r.owner_name}**, {r.owner_title or ''} at {r.company_name} · [{r.event_name}]"
-                        f"({r.source_url or r.event_url}) · stage `{r.stage}` · Needle `{r.needle_status}`")
+            st.markdown(f"**{esc(r.owner_name)}**, {esc(r.owner_title)} at {esc(r.company_name)} · "
+                        f"{link(r.event_name, r.source_url or r.event_url)} · stage `{r.stage}` · "
+                        f"Needle `{r.needle_status}`")
             text = st.text_area("Note", r.message, key=f"m{r.id}", max_chars=300, label_visibility="collapsed")
             s, q = st.columns(2)
             if s.button("Save edit", key=f"s{r.id}"):
@@ -140,17 +155,17 @@ with tab_rep:
         st.info("No lead has been contacted yet. Approve notes in the Needle inbox, then sync on the Messages tab.")
     for _, r in contacted.astype(object).where(contacted.notna(), None).iterrows():
         with st.container(border=True):
-            st.markdown(f"**{r.owner_name}** ({r.company_name}) · Needle `{r.needle_status}` · "
+            st.markdown(f"**{esc(r.owner_name)}** ({esc(r.company_name)}) · Needle `{r.needle_status}` · "
                         f"reply `{r.reply_class or '-'}` · stage `{r.stage}`")
             if not r.reply_text:
                 txt = st.text_area("Paste their reply", key=f"p{r.id}")
                 if st.button("Classify reply", key=f"c{r.id}") and txt.strip():
                     replies.record_reply(conn, int(r.id), txt.strip()); st.rerun()
                 continue
-            st.write(f"> {r.reply_text}")
+            st.text(r.reply_text)
             if r.reply_class != "interested" or r.stage == "booked":
                 if r.stage == "booked":
-                    st.success(f"Booked: {r.meeting_start} at {r.meeting_location}")
+                    st.success(f"Booked: {esc(r.meeting_start)} at {esc(r.meeting_location)}")
                     p = Path(__file__).resolve().parents[1] / "data" / "ics" / f"lead-{int(r.id)}.ics"
                     if p.exists():
                         st.download_button("Download invite (.ics)", p.read_bytes(), p.name, "text/calendar",
@@ -180,14 +195,15 @@ with tab_one:
         by_id = leads.set_index("id").astype(object)
         r = by_id.loc[st.selectbox("Lead", by_id.index, format_func=lambda i: f"{i}: {by_id.loc[i, 'company_name']}")]
         r = r.where(pd.notna(r), None)  # NaN -> None so "or" fallbacks work
-        steps = [("scraped", f"Found at **{r.event_name}**: {r.company_name} ({r.domain}). Source: {r.source_url or r.event_url}"),
+        steps = [("scraped", f"Found at **{esc(r.event_name)}**: {esc(r.company_name)} ({esc(r.domain)}). "
+                             f"{link('Source', r.source_url or r.event_url)}"),
                  ("deduped", {0: "Checked against AI Ark: **NOT IN AI ARK**, a ghost.", 1: "Already in AI Ark."}
                   .get(r.in_aiark, "AI Ark check pending.")),
-                 ("enriched", f"Person: **{r.owner_name or '-'}**, {r.owner_title or '-'}. LinkedIn: {r.linkedin_url or '-'} "
-                              f"(source: {r.enrichment_source or '-'})"),
-                 ("verified", f"Email: {r.email or '-'} → `{r.email_status or '-'}`"),
-                 ("drafted", f"Note:\n\n> " + (r.message or "-").replace("\n", "\n> ")),
-                 ("sent", f"Needle: `{r.needle_status}` {r.needle_ref or ''}")]
+                 ("enriched", f"Person: **{esc(r.owner_name or '-')}**, {esc(r.owner_title or '-')}. "
+                              f"{link('LinkedIn', r.linkedin_url)} (source: {esc(r.enrichment_source or '-')})"),
+                 ("verified", f"Email: {esc(r.email or '-')} → `{esc(r.email_status or '-')}`"),
+                 ("drafted", "Note: " + esc(r.message or "-")),
+                 ("sent", f"Needle: `{esc(r.needle_status)}` {esc(r.needle_ref)}")]
         for s, text in steps:
             done = order.index(r.stage) >= order.index(s)
             st.markdown(f"{'✅' if done else '⬜'} **{s}** · {text if done or s == 'deduped' else ''}")

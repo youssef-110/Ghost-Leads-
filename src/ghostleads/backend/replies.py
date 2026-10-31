@@ -14,7 +14,7 @@ from zoneinfo import ZoneInfo
 from openai import OpenAI
 
 from ghostleads import db
-from ghostleads.backend import draft, needle, send
+from ghostleads.backend import draft, needle, send, verify
 from ghostleads.backend.config import ROOT, connect, key
 
 MODEL = "gpt-4.1-mini"
@@ -81,6 +81,17 @@ def propose(conn, r):
     return out.choices[0].message.content.strip()
 
 
+def _text(v):
+    """RFC 5545 TEXT escaping; lead fields are scraped, so no raw CR/LF may reach the file."""
+    v = str(v or "").replace("\\", "\\\\").replace(";", "\\;").replace(",", "\\,")
+    return v.replace("\r\n", "\\n").replace("\n", "\\n").replace("\r", "")
+
+
+def _param(v):
+    """Quoted parameter value (CN): no quotes, control characters or line breaks."""
+    return '"' + "".join(ch for ch in str(v or "") if ch not in '"\r\n' and ord(ch) >= 32) + '"'
+
+
 def ics(r, start, minutes, location, organizer_email=None):
     """iCalendar invite text for a confirmed meeting."""
     uid = f"{uuid.uuid4()}@ghostleads"
@@ -89,11 +100,12 @@ def ics(r, start, minutes, location, organizer_email=None):
     lines = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Ghost Leads//EN", "METHOD:REQUEST", "BEGIN:VEVENT",
              f"UID:{uid}", f"DTSTAMP:{datetime.now(ZoneInfo('UTC')).strftime(fmt)}", f"DTSTART:{s.strftime(fmt)}",
              f"DTEND:{(s + timedelta(minutes=minutes)).strftime(fmt)}",
-             f"SUMMARY:Coffee at {r['event_name']}: {r['owner_name']} ({r['company_name']})",
-             f"LOCATION:{location}", f"DESCRIPTION:Booked via Ghost Leads. Lead {r['linkedin_url'] or ''}"]
-    if r["email"]:
-        lines.append(f"ATTENDEE;CN={r['owner_name']};RSVP=TRUE:mailto:{r['email']}")
-    if organizer_email:
+             "SUMMARY:" + _text(f"Coffee at {r['event_name']}: {r['owner_name']} ({r['company_name']})"),
+             "LOCATION:" + _text(location),
+             "DESCRIPTION:" + _text(f"Booked via Ghost Leads. Lead {r['linkedin_url'] or ''}")]
+    if r["email"] and verify.EMAIL.match(r["email"]):
+        lines.append(f"ATTENDEE;CN={_param(r['owner_name'])};RSVP=TRUE:mailto:{r['email']}")
+    if organizer_email and verify.EMAIL.match(organizer_email):
         lines.append(f"ORGANIZER:mailto:{organizer_email}")
     lines += ["END:VEVENT", "END:VCALENDAR"]
     return uid, "\r\n".join(lines) + "\r\n"
