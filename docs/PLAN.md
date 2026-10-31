@@ -24,7 +24,8 @@ The event itself is chosen by the marketer. Pick a real upcoming or very recent 
 6. Verify emails (ZeroBounce or Prospeo or tryKitt).
 7. Personalize: a short opener that references the event and a scraped fact.
 8. Send 10-20 LinkedIn touches through Needle. Email is shown as drafted and verified only.
-9. Dashboard: funnel counts (found, ghost, enriched, verified, drafted, sent, accepted, replied), cost per verified ghost lead, one lead shown live through every stage.
+9. Dashboard: funnel counts (found, ghost, enriched, verified, drafted, sent, accepted, replied, booked), cost per verified ghost lead, one lead shown live through every stage.
+10. Stretch, after the first end-to-end run: track replies, classify interest, propose slots at the event, and on a confirmed time create a calendar invite so the lead and our team meet at the event. Human approval before any reply or invite goes out. Only count a meeting as booked if the lead agreed to it.
 
 ## Pre-test (do first)
 Check 20 leads against AI Ark. If more than half are already in it, switch to the fallback niche. AI Ark's API may not offer a single-domain lookup: if so, export a bulk list and diff locally. Ask the AI Ark team on site.

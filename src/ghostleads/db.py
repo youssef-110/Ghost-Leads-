@@ -3,7 +3,7 @@ import os
 import sqlite3
 from pathlib import Path
 
-STAGES = ("scraped", "deduped", "enriched", "verified", "drafted", "sent")
+STAGES = ("scraped", "deduped", "enriched", "verified", "drafted", "sent", "replied", "booked")
 SCHEMA = Path(__file__).resolve().parents[2] / "schema.sql"
 SCRAPED_FIELDS = (
     "event_name", "event_url", "source_url", "company_name", "domain",

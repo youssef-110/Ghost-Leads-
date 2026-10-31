@@ -22,7 +22,12 @@ CREATE TABLE IF NOT EXISTS leads (
   message TEXT,
   needle_status TEXT NOT NULL DEFAULT 'pending',  -- pending | sent | accepted | replied | failed
   needle_ref TEXT,
-  stage TEXT NOT NULL DEFAULT 'scraped',          -- scraped | deduped | enriched | verified | drafted | sent
+  reply_text TEXT,
+  reply_class TEXT,            -- interested | not_interested | question | later
+  meeting_start TEXT,          -- ISO 8601 with timezone
+  meeting_location TEXT,       -- event name and booth or meeting point
+  calendar_event_id TEXT,
+  stage TEXT NOT NULL DEFAULT 'scraped',          -- scraped | deduped | enriched | verified | drafted | sent | replied | booked
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   UNIQUE (event_name, domain)
