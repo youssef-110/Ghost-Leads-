@@ -23,9 +23,15 @@ def connect():
     return db.connect(os.getenv("GL_DB") or str(ROOT / "data" / "ghostleads.db"))
 
 
-def rows(conn, stage, include_seed=False, **where):
-    """Rows at a stage, real events only unless include_seed. Extra equality filters via kwargs."""
+OUTREACHABLE = "COALESCE(in_aiark, 0) = 0"  # ghost or not yet checked; never a company already in AI Ark
+
+
+def rows(conn, stage, include_seed=False, outreachable=False, **where):
+    """Rows at a stage, real events only unless include_seed. outreachable drops companies already in AI Ark.
+    Extra equality filters via kwargs."""
     sql, args = "SELECT * FROM leads WHERE stage=?", [stage]
+    if outreachable:
+        sql += " AND " + OUTREACHABLE
     if not include_seed:
         sql += " AND event_name<>?"
         args.append(SEED_EVENT)

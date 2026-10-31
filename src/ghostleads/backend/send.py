@@ -78,7 +78,7 @@ def create_reviewed_draft(lead_id, expected_snapshot):
         try:
             claimed = conn.execute(
                 "UPDATE leads SET needle_status='draft_creating', updated_at=CURRENT_TIMESTAMP "
-                "WHERE id=? AND event_name<>? AND stage='drafted' AND in_aiark=0 "
+                "WHERE id=? AND event_name<>? AND stage='drafted' AND COALESCE(in_aiark, 0)=0 "
                 "AND needle_ref IS NULL AND needle_status='pending' "
                 + "".join(f"AND {col} IS ? " for col in REVIEW_FIELDS[1:])
                 + "RETURNING *",
@@ -105,7 +105,7 @@ def create_reviewed_draft(lead_id, expected_snapshot):
             reference = "draft:" + draft_id
             saved = conn.execute(
                 "UPDATE leads SET needle_ref=?, needle_status='pending', updated_at=CURRENT_TIMESTAMP "
-                "WHERE id=? AND stage='drafted' AND in_aiark=0 "
+                "WHERE id=? AND stage='drafted' AND COALESCE(in_aiark, 0)=0 "
                 "AND needle_status='draft_creating' AND needle_ref IS NULL "
                 + "".join(f"AND {col} IS ? " for col in REVIEW_FIELDS[1:]),
                 (reference, lead_id, *expected_snapshot[1:]),
@@ -155,7 +155,7 @@ def sync(conn):
             saved = conn.execute(
                 "UPDATE leads SET needle_status='sent', stage='sent', updated_at=CURRENT_TIMESTAMP "
                 "WHERE id=? AND needle_ref=? AND needle_status='pending' "
-                "AND event_name<>? AND stage='drafted' AND in_aiark=0",
+                "AND event_name<>? AND stage='drafted' AND COALESCE(in_aiark, 0)=0",
                 (r["id"], r["needle_ref"], SEED_EVENT),
             )
             conn.commit()
@@ -195,7 +195,7 @@ def main(argv=None):
     if a.cmd == "sync":
         return sync(conn)
 
-    todo = [r for r in rows(conn, "drafted", in_aiark=0) if r["message"] and not r["needle_ref"]]
+    todo = [r for r in rows(conn, "drafted", outreachable=True) if r["message"] and not r["needle_ref"]]
     if a.ids:
         wanted = {int(i) for i in a.ids.split(",")}
         todo = [r for r in todo if r["id"] in wanted]

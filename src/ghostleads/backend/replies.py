@@ -59,7 +59,7 @@ def record_reply(conn, lead_id, text):
         raise ValueError("SEED replies cannot be recorded")
     if r["reply_text"] is not None:
         raise ReplyConflict("reply already recorded; do not overwrite inbound evidence")
-    if r["stage"] != "sent" or r["in_aiark"] != 0 or r["needle_status"] not in ("sent", "accepted"):
+    if r["stage"] != "sent" or r["in_aiark"] == 1 or r["needle_status"] not in ("sent", "accepted"):
         # Retain inbound evidence on a real, unresponded-to lead, without
         # promoting an unsafe row or letting it enter automatic reply handling.
         if r["stage"] in ("replied", "booked"):
@@ -97,7 +97,7 @@ def sync(conn):
         elif r["needle_status"] == "sent" and any("accept" in e["type"] for e in events):
             changed = conn.execute(
                 "UPDATE leads SET needle_status='accepted', updated_at=CURRENT_TIMESTAMP "
-                "WHERE id=? AND event_name<>? AND stage='sent' AND in_aiark=0 "
+                "WHERE id=? AND event_name<>? AND stage='sent' AND COALESCE(in_aiark, 0)=0 "
                 "AND needle_status='sent' AND reply_text IS NULL AND reply_class IS NULL",
                 (r["id"], SEED_EVENT),
             ).rowcount

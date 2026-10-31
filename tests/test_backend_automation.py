@@ -304,27 +304,35 @@ def test_run_stages_rejects_outreach_and_invalid_options_before_side_effects(sto
     assert automation.status(store)["stages"]["scraped"] == 1
 
 
-def test_run_stages_blocks_enrichment_of_unchecked_rows(store, monkeypatch):
-    lead(store, stage="deduped", in_aiark=None)
+def test_run_stages_skips_enrichment_of_known_aiark_rows(store, monkeypatch):
+    lead(store, stage="deduped", in_aiark=1)
     store.commit()
-    monkeypatch.setattr("ghostleads.backend.enrich.main", lambda argv: pytest.fail("unchecked lead"))
+    monkeypatch.setattr("ghostleads.backend.enrich.main", lambda argv: pytest.fail("company already in AI Ark"))
     result = automation.run_stages("enrich")
-    assert result["stopped"] == "enrich: AI Ark check pending for deduped rows"
     assert result["completed"] == []
 
 
-@pytest.mark.parametrize("name, stage", [("verify", "enriched"), ("draft", "verified")])
-def test_downstream_stage_stops_on_unchecked_rows(store, monkeypatch, name, stage):
-    lead(store, stage=stage, in_aiark=None, owner_name="Alex", linkedin_url="https://www.linkedin.com/in/alex/")
+def test_run_stages_enriches_unchecked_rows(store, monkeypatch):
+    # AI Ark unavailable: unchecked rows continue, shown as "not checked", never counted as ghosts
+    lead(store, stage="deduped", in_aiark=None)
     store.commit()
-    monkeypatch.setattr(f"ghostleads.backend.{name}.main", lambda argv: pytest.fail("unchecked lead"))
-    result = automation.run_stages(name)
-    assert result["stopped"] == f"{name}: AI Ark check pending for {stage} rows"
+    called = []
+    monkeypatch.setattr("ghostleads.backend.enrich.main", lambda argv: called.append(argv))
+    automation.run_stages("enrich")
+    assert called
+
+
+@pytest.mark.parametrize("name, stage", [("verify", "enriched"), ("draft", "verified")])
+def test_downstream_stage_skips_known_aiark_rows(store, monkeypatch, name, stage):
+    lead(store, stage=stage, in_aiark=1, owner_name="Alex", linkedin_url="https://www.linkedin.com/in/alex/")
+    store.commit()
+    monkeypatch.setattr(f"ghostleads.backend.{name}.main", lambda argv: pytest.fail("company already in AI Ark"))
+    assert automation.run_stages(name)["completed"] == []
 
 
 def test_direct_cli_stages_cannot_bypass_aiark(store, monkeypatch):
     for stage in ("deduped", "enriched", "verified", "drafted"):
-        lead(store, name=f"Event {stage}", stage=stage, in_aiark=None, owner_name="Alex", message="Unchecked message",
+        lead(store, name=f"Event {stage}", stage=stage, in_aiark=1, owner_name="Alex", message="Known message",
              linkedin_url="https://www.linkedin.com/in/alex/")
     store.commit()
     monkeypatch.setattr("ghostleads.backend.enrich.blitz", lambda: pytest.fail("no unchecked enrichment"))
@@ -335,7 +343,7 @@ def test_direct_cli_stages_cannot_bypass_aiark(store, monkeypatch):
     draft.main([])
     with pytest.raises(SystemExit, match="CLI draft creation disabled"):
         send.main(["--draft"])
-    assert store.execute("SELECT COUNT(*) FROM leads WHERE in_aiark IS NULL").fetchone()[0] == 4
+    assert store.execute("SELECT COUNT(*) FROM leads WHERE in_aiark=1 AND stage<>'deduped'").fetchone()[0] == 3
 
 
 def test_sync_drafts_reads_actual_needle_status_and_not_direct_send(store, monkeypatch):
@@ -488,7 +496,6 @@ def test_reviewed_draft_failed_claim_commit_never_calls_provider(store, monkeypa
 
 @pytest.mark.parametrize("name,checked,stage,status,ref,url", [
     ("SEED", 0, "drafted", "pending", None, "https://www.linkedin.com/in/alex"),
-    ("Event", None, "drafted", "pending", None, "https://www.linkedin.com/in/alex"),
     ("Event", 1, "drafted", "pending", None, "https://www.linkedin.com/in/alex"),
     ("Event", 0, "verified", "pending", None, "https://www.linkedin.com/in/alex"),
     ("Event", 0, "drafted", "sent_conflict", None, "https://www.linkedin.com/in/alex"),
@@ -638,7 +645,7 @@ def test_sync_draft_only_marks_sent_after_needle_reports_sent(store, monkeypatch
 
 
 def test_sync_sent_draft_with_unchecked_aiark_is_explicit_conflict(store, monkeypatch, capsys):
-    row_id = lead(store, stage="drafted", in_aiark=None, needle_ref="draft:unchecked")
+    row_id = lead(store, stage="drafted", in_aiark=1, needle_ref="draft:unchecked")
     store.commit()
     calls = []
 
@@ -649,7 +656,7 @@ def test_sync_sent_draft_with_unchecked_aiark_is_explicit_conflict(store, monkey
     monkeypatch.setattr("ghostleads.backend.needle.call", get_draft)
     send.sync(store)
     assert tuple(store.execute("SELECT stage, needle_status, in_aiark, needle_ref FROM leads WHERE id=?", (row_id,)).fetchone()) == (
-        "drafted", "sent_conflict", None, "draft:unchecked")
+        "drafted", "sent_conflict", 1, "draft:unchecked")
     assert "conflict" in capsys.readouterr().out.lower()
     assert automation.status(store)["needle"]["sent_conflict"] == 1
     send.sync(store)
@@ -657,7 +664,7 @@ def test_sync_sent_draft_with_unchecked_aiark_is_explicit_conflict(store, monkey
 
 
 @pytest.mark.parametrize("name,stage,checked", [
-    ("SEED", "sent", 0), ("Real event", "sent", None),
+    ("SEED", "sent", 0), ("Real event", "sent", 1),
     ("Real event", "verified", 0), ("Real event", "drafted", 0),
     ("Real event", "replied", 0),
 ])
@@ -697,7 +704,7 @@ def test_paste_preserves_unproven_inbound_and_reports_reply_conflict(store, monk
 
 
 def test_sync_quarantines_unsafe_inbound_and_continues_to_eligible_lead(store, monkeypatch, capsys):
-    unsafe = lead(store, "Unchecked inbound", stage="sent", in_aiark=None, needle_status="sent",
+    unsafe = lead(store, "Known inbound", stage="sent", in_aiark=1, needle_status="sent",
                   owner_name="Alex", linkedin_url="https://www.linkedin.com/in/unsafe")
     eligible = lead(store, "Checked inbound", stage="sent", in_aiark=0, needle_status="sent",
                     owner_name="Bea", linkedin_url="https://www.linkedin.com/in/eligible")
@@ -718,7 +725,7 @@ def test_sync_quarantines_unsafe_inbound_and_continues_to_eligible_lead(store, m
     assert seen == [str(unsafe), str(eligible)]
     assert classified == [f"Inbound {eligible}"]
     assert tuple(store.execute("SELECT stage, in_aiark, needle_status, reply_text, reply_class FROM leads WHERE id=?",
-                               (unsafe,)).fetchone()) == ("sent", None, "sent_conflict", f"Inbound {unsafe}", None)
+                               (unsafe,)).fetchone()) == ("sent", 1, "sent_conflict", f"Inbound {unsafe}", None)
     assert tuple(store.execute("SELECT stage, needle_status, reply_text, reply_class FROM leads WHERE id=?",
                                (eligible,)).fetchone()) == ("replied", "replied", f"Inbound {eligible}", "question")
     assert "conflict" in capsys.readouterr().out.lower()

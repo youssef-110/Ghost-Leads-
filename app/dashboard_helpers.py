@@ -88,7 +88,7 @@ def queue_eligible(row: dict, *, approved: bool, reviewed_message: str,
                    reviewed_identity: tuple) -> bool:
     """Only queue a draft whose recipient and exact text still match the review."""
     return bool(approved and review_identity(row) == reviewed_identity
-                and row.get("event_name") != "SEED" and row.get("stage") == "drafted" and row.get("in_aiark") == 0
+                and row.get("event_name") != "SEED" and row.get("stage") == "drafted" and row.get("in_aiark") != 1
                 and not row.get("needle_ref") and row.get("needle_status") == "pending"
                 and row.get("message") and row["message"] == reviewed_message
                 and all(isinstance(v, str) and v.strip() for v in reviewed_identity[1:])

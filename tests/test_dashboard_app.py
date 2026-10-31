@@ -43,16 +43,17 @@ class DashboardAppTests(TestCase):
         with closing(sqlite3.connect(self.path)) as conn:
             self.assertEqual(conn.execute("SELECT COUNT(*) FROM leads WHERE needle_ref IS NOT NULL").fetchone()[0], 0)
 
-    def test_unchecked_draft_needs_aiark_check_and_explicit_approval(self):
+    def test_unchecked_draft_is_flagged_and_needs_explicit_approval(self):
         app = self.app()
         with patch.dict(os.environ, {"GL_DB": str(self.path)}):
             app.sidebar.radio[0].set_value("Draft review").run()
             self.assertFalse(app.exception)
-            self.assertTrue(next(b for b in app.button if b.label.startswith("Create ONE")).disabled)
             app.selectbox[0].set_value("#3 · Unchecked firm · Web Summit 2026").run()
             self.assertFalse(app.exception)
+            self.assertTrue(any("not counted as a ghost" in str(i.value) for i in app.info))
             self.assertTrue(next(b for b in app.button if b.label.startswith("Create ONE")).disabled)
-            self.assertTrue(any("Unchecked is not a ghost" in str(w.value) for w in app.warning))
+            app.checkbox[0].set_value(True).run()
+            self.assertFalse(next(b for b in app.button if b.label.startswith("Create ONE")).disabled)
 
     def test_reviewed_click_passes_exact_snapshot_to_backend_once(self):
         app = self.app()

@@ -43,7 +43,7 @@ def main(argv=None):
     ap.add_argument("--include-seed", action="store_true")
     a = ap.parse_args(argv)
     conn = connect()
-    todo = rows(conn, "enriched", a.include_seed, in_aiark=0)[: a.limit]
+    todo = rows(conn, "enriched", a.include_seed, outreachable=True)[: a.limit]
     counts = {}
     if todo:
         with enrich.blitz() as c:

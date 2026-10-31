@@ -104,18 +104,12 @@ def run_stages(stages, *, limit=None, phones=0):
         stopped = None
         steps = {"dedupe": aiark.main, "enrich": enrich.main, "verify": verify.main, "draft": draft.main}
         for name in names:
-            source = {"enrich": "deduped", "verify": "enriched", "draft": "verified"}.get(name)
-            if source and conn.execute(
-                "SELECT 1 FROM leads WHERE event_name<>? AND stage=? AND in_aiark IS NULL LIMIT 1",
-                (SEED_EVENT, source),
-            ).fetchone():
-                stopped = f"{name}: AI Ark check pending for {source} rows"
-                break
+            # leads AI Ark could not check continue as 'not checked'; they are never counted as ghosts
             pending = {
                 "dedupe": "stage='scraped' OR (in_aiark IS NULL AND stage<>'scraped')",
-                "enrich": "stage='deduped' AND in_aiark=0",
-                "verify": "stage='enriched' AND in_aiark=0",
-                "draft": "stage='verified' AND in_aiark=0 AND linkedin_url IS NOT NULL AND owner_name IS NOT NULL",
+                "enrich": "stage='deduped' AND COALESCE(in_aiark, 0)=0",
+                "verify": "stage='enriched' AND COALESCE(in_aiark, 0)=0",
+                "draft": "stage='verified' AND COALESCE(in_aiark, 0)=0 AND linkedin_url IS NOT NULL AND owner_name IS NOT NULL",
             }[name]
             count = conn.execute(
                 f"SELECT COUNT(*) FROM leads WHERE event_name<>? AND ({pending})", (SEED_EVENT,),

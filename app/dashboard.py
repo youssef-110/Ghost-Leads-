@@ -153,7 +153,7 @@ elif view == "Draft review":
                     if not draft_text.strip(): st.error("Draft cannot be blank.")
                     else:
                         with closing(sqlite3.connect(DB)) as conn:
-                            updated = conn.execute("UPDATE leads SET message=?, updated_at=CURRENT_TIMESTAMP WHERE id=? AND event_name<>? AND stage='drafted' AND in_aiark=0 AND needle_ref IS NULL AND COALESCE(needle_status,'pending')='pending' AND message=? AND linkedin_url IS ? AND owner_name IS ?", (draft_text.strip(), row["id"], "SEED", row["message"], row["linkedin_url"], row["owner_name"]))
+                            updated = conn.execute("UPDATE leads SET message=?, updated_at=CURRENT_TIMESTAMP WHERE id=? AND event_name<>? AND stage='drafted' AND COALESCE(in_aiark, 0)=0 AND needle_ref IS NULL AND COALESCE(needle_status,'pending')='pending' AND message=? AND linkedin_url IS ? AND owner_name IS ?", (draft_text.strip(), row["id"], "SEED", row["message"], row["linkedin_url"], row["owner_name"]))
                             conn.commit()
                         if updated.rowcount == 1:
                             st.success("Saved locally. Review the new version before approving.")
@@ -163,7 +163,7 @@ elif view == "Draft review":
             version = hashlib.sha256(repr(reviewed).encode("utf-8")).hexdigest()[:16]
             approval = st.checkbox("I reviewed this exact text and recipient for this lead and authorize creating one Needle draft for separate human approval in Needle.", key=f'approve_{row["id"]}_{version}')
             eligible = queue_eligible(row, approved=approval, reviewed_message=draft_text, reviewed_identity=reviewed)
-            if row["in_aiark"] is None: st.warning("AI Ark has not checked this lead. Unchecked is not a ghost; queuing is disabled.")
+            if row["in_aiark"] is None: st.info("AI Ark has not checked this lead yet. It is not counted as a ghost, but you can still review and queue it.")
             elif row["in_aiark"] == 1: st.warning("This lead is already in AI Ark. Queuing is disabled.")
             if not row["linkedin_url"]: st.warning("A LinkedIn profile is required to create a Needle draft.")
             if st.button("Create ONE Needle draft ↗", type="primary", disabled=not eligible):
@@ -191,7 +191,7 @@ elif view == "Runs":
     heading("04", "Run control", "Bounded, opt-in stages. No unattended run, bulk queue, send, or booking.")
     note("SAFETY BOUNDARY", "These steps check AI Ark, enrich, verify or write local drafts. None sends a message.", True)
     steps = (("dedupe", "01 / AI Ark check", "Checks records without an AI Ark outcome.", sum(r["in_aiark"] is None for r in leads)),
-             ("enrich", "02 / Enrich domain misses", "Requires AI Ark results first; enriches leads not found by domain.", sum(r["stage"] == "deduped" and r["in_aiark"] == 0 for r in leads)),
+             ("enrich", "02 / Enrich domain misses", "Enriches leads not found by AI Ark, or not yet checked.", sum(r["stage"] == "deduped" and r["in_aiark"] != 1 for r in leads)),
              ("verify", "03 / Verify email", "Verifies enriched email data, without sending email.", stats["stages"]["enriched"]),
              ("draft", "04 / Compose notes", "Writes local notes for verified leads with an owner and profile.", sum(bool(r["stage"] == "verified" and r["linkedin_url"] and r["owner_name"]) for r in leads)))
     limit = st.number_input("Maximum leads per step", min_value=1, max_value=100, value=10, step=1)

@@ -85,7 +85,7 @@ def main(argv=None):
     a = ap.parse_args(argv)
     cfg = json.loads((ROOT / "outreach.json").read_text(encoding="utf-8"))
     conn = connect()
-    todo = rows(conn, "verified", a.include_seed, in_aiark=0) + (rows(conn, "drafted", a.include_seed, in_aiark=0) if a.redo else [])
+    todo = rows(conn, "verified", a.include_seed, outreachable=True) + (rows(conn, "drafted", a.include_seed, outreachable=True) if a.redo else [])
     # LinkedIn is the channel: a lead without a profile cannot get a note
     todo = [r for r in todo if r["needle_ref"] is None and r["needle_status"] == "pending"
             and r["linkedin_url"] and r["owner_name"]][: a.limit]
@@ -103,7 +103,7 @@ def main(argv=None):
         # generated. Never rewrite text or stage after that durable claim.
         changed = conn.execute(
             "UPDATE leads SET message=?, stage='drafted', updated_at=CURRENT_TIMESTAMP "
-            "WHERE id=? AND stage=? AND in_aiark=0 AND needle_ref IS NULL "
+            "WHERE id=? AND stage=? AND COALESCE(in_aiark, 0)=0 AND needle_ref IS NULL "
             "AND needle_status='pending' AND message IS ? AND owner_name IS ? AND linkedin_url IS ?",
             (note, r["id"], r["stage"], r["message"], r["owner_name"], r["linkedin_url"]),
         )

@@ -10,7 +10,6 @@ from ghostleads.backend import send
     ("stage", "verified"),
     ("stage", "sent"),
     ("in_aiark", 1),
-    ("in_aiark", None),
 ])
 def test_provider_draft_cannot_be_queued_after_eligibility_changes(
     tmp_path, monkeypatch, changed_column, new_value

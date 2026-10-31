@@ -92,7 +92,7 @@ def enrich_row(c, r):
 def add_phones(conn, n):
     if n <= 0:
         return 0
-    todo = conn.execute("SELECT id, linkedin_url FROM leads WHERE stage='enriched' AND in_aiark=0 "
+    todo = conn.execute("SELECT id, linkedin_url FROM leads WHERE stage='enriched' AND COALESCE(in_aiark, 0)=0 "
                         "AND event_name<>? AND linkedin_url IS NOT NULL AND phone IS NULL ORDER BY id LIMIT ?",
                         (SEED_EVENT, n)).fetchall()
     found = 0
@@ -119,7 +119,7 @@ def main(argv=None):
 
     conn = connect()
     # An unchecked AI Ark row is not a ghost. Never silently advance it.
-    ghosts = rows(conn, "deduped", a.include_seed, in_aiark=0)[: a.limit]
+    ghosts = rows(conn, "deduped", a.include_seed, outreachable=True)[: a.limit]
     if ghosts:
         with blitz() as c:
             for r in ghosts:
