@@ -136,7 +136,9 @@ function Events({ d, ws, reload }: { d: Data; ws: Ws; reload: () => void }) {
       end_date: f.end_date || null, url: f.url || null,
       search_terms: search_terms.length ? search_terms : [`"${f.name.trim()}" see you`, `"${f.name.trim()}" attending`],
     });
-    if (error) return setErr(error.message);
+    if (error) return setErr(error.code === "23505"
+      ? "That event name is already used by another workspace. Add your company or city, e.g. “Web Summit 2026 · Acme”."
+      : error.message);
     setF({ name: "", city: "", start_date: "", end_date: "", url: "", terms: "" });
     reload();
   }

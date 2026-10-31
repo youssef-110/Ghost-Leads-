@@ -91,15 +91,19 @@ def run_job(job):
         verify.main([])
         draft.main([])
     elif kind == "queue_drafts":
-        pull_messages(ws)
         conn = connect()
         done = 0
-        for lead_id in p.get("lead_ids", []):
-            if not isinstance(lead_id, dict) or lead_id.get("event_name") not in allowed:
-                continue  # another workspace's lead
-            r = conn.execute(f"SELECT {','.join(send.REVIEW_FIELDS)} FROM leads l WHERE event_name=? AND domain=?",
-                             (lead_id["event_name"], lead_id["domain"])).fetchone()
-            if r:
+        # Supabase confirms each approved lead belongs to this job's workspace; the payload itself is not trusted.
+        # Event names are unique across workspaces, so (event_name, domain) is one local row.
+        for lead in rpc("gl_worker_job_leads", job=job["id"]) or []:
+            if lead["event_name"] not in allowed:
+                continue
+            conn.execute("UPDATE leads SET message=?, updated_at=CURRENT_TIMESTAMP WHERE event_name=? AND domain=? "
+                         "AND needle_ref IS NULL", (lead["message"], lead["event_name"], lead["domain"]))
+            conn.commit()
+            r = conn.execute(f"SELECT {','.join(send.REVIEW_FIELDS)} FROM leads WHERE event_name=? AND domain=?",
+                             (lead["event_name"], lead["domain"])).fetchone()
+            if r and r["message"] == lead["message"]:
                 send.create_reviewed_draft(r[0], tuple(r))  # the member approved this exact text in the app
                 done += 1
         return {"queued": done, **(push(ws, events) or {})}
@@ -141,7 +145,12 @@ def main(argv=None):
     if not ws:
         raise SystemExit(f"no workspace {a.workspace!r}; sign up in the web app first. Known: {[s['name'] for s in spaces]}")
     conn = connect()
-    events = [r[0] for r in conn.execute("SELECT DISTINCT event_name FROM leads WHERE event_name<>?", (SEED_EVENT,))]
+    local = [r[0] for r in conn.execute("SELECT DISTINCT event_name FROM leads WHERE event_name<>?", (SEED_EVENT,))]
+    # claim each event for this workspace; an event owned by another workspace is skipped, never shared
+    events = [e for e in local if rpc("gl_worker_claim_event", ws=ws, event_name=e)]
+    skipped = sorted(set(local) - set(events))
+    if skipped:
+        print(f"skipped (owned by another workspace): {skipped}")
     print(push(ws, events))
 
 
