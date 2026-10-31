@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import os
+import re
+import time
 from urllib.parse import urlparse, urlunparse
 
 from bs4 import BeautifulSoup
@@ -10,6 +12,8 @@ from openai import OpenAI
 from pydantic import BaseModel
 
 from .fetch import fetch_page
+
+_SERPER_LAST_REQUEST = 0.0
 
 
 class ContactExtraction(BaseModel):
@@ -28,26 +32,103 @@ def bare_domain(url: str | None) -> str | None:
         return None
     value = url if "://" in url else "https://" + url
     host = (urlparse(value).hostname or "").lower().removeprefix("www.").rstrip(".")
+    parts = host.split(".")
+    if len(parts) >= 3 and parts[0] in {
+        "us", "eu", "uk", "de", "fr", "ca", "au", "apac", "portal", "news",
+        "events", "documentation", "docs", "semiconductor",
+    }:
+        host = ".".join(parts[1:])
     return host or None
 
 
-def resolve_domain(company_name: str, *, serper_api_key: str | None = None) -> str | None:
-    """Use Serper's public search results for a company that had no event-page link."""
+def resolve_domain(
+    company_name: str,
+    *,
+    event_name: str | None = None,
+    serper_api_key: str | None = None,
+) -> str | None:
+    """Resolve a company domain from relevant Serper results, skipping ambiguous matches."""
     load_dotenv()
     key = serper_api_key or os.getenv("SERPER_API_KEY")
     if not key:
         return None
     import httpx
-    response = httpx.post(
-        "https://google.serper.dev/search",
-        headers={"X-API-KEY": key, "Content-Type": "application/json"},
-        json={"q": f"{company_name} official website"}, timeout=20,
-    )
-    response.raise_for_status()
-    for result in response.json().get("organic", []):
-        domain = bare_domain(result.get("link"))
-        if domain:
-            return domain
+    excluded = {
+        "facebook.com", "instagram.com", "linkedin.com", "x.com", "twitter.com",
+        "youtube.com", "wikipedia.org", "crunchbase.com", "cloudfest.com",
+        "google.com", "bing.com",
+    }
+    company_tokens = [part for part in re.findall(r"[a-z0-9]+", company_name.lower()) if len(part) > 2]
+    if not company_tokens:
+        return None
+    search_name = company_name
+    queries = []
+    if event_name:
+        event_word = event_name.split()[0]
+        queries.append(f'{search_name} at {event_word} official website')
+    queries.append(f'{search_name} official website')
+
+    global _SERPER_LAST_REQUEST
+    for query in queries:
+        candidates: dict[str, tuple[int, str]] = {}
+        wait = 1.0 - (time.monotonic() - _SERPER_LAST_REQUEST)
+        if wait > 0:
+            time.sleep(wait)
+        response = httpx.post(
+            "https://google.serper.dev/search",
+            headers={"X-API-KEY": key, "Content-Type": "application/json"},
+            json={"q": query, "num": 10}, timeout=20,
+        )
+        _SERPER_LAST_REQUEST = time.monotonic()
+        response.raise_for_status()
+        for rank, result in enumerate(response.json().get("organic", [])):
+            domain = bare_domain(result.get("link"))
+            if not domain or any(domain == d or domain.endswith("." + d) for d in excluded):
+                continue
+            if domain.split(".")[0] in {
+                "careers", "jobs", "support", "help", "docs", "documentation", "blog",
+                "shop", "store", "news", "portal", "events",
+            }:
+                continue
+            title = (result.get("title") or "").lower()
+            host = domain.split(":")[0]
+            title_words = set(re.findall(r"[a-z0-9]+", title))
+            host_words = set(re.findall(r"[a-z0-9]+", host))
+            title_hits = sum(token in title_words for token in company_tokens)
+            host_hits = sum(token in host_words for token in company_tokens)
+            if not title_hits and not host_hits:
+                continue
+            host_label = host.split(".")[0]
+            joined_name = "".join(company_tokens)
+            host_alias_match = host_label.startswith(joined_name) and len(host_label) - len(joined_name) >= 3
+            if not host_hits and not host_alias_match:
+                continue
+            # Penalize clear same-name collisions, e.g. Ampere electric scooters or
+            # Arrow apparel. Event-specific evidence gets more weight than raw rank.
+            text = (title + " " + (result.get("snippet") or "")).lower()
+            collision = any(term in text for term in (
+                "scooter", "electric vehicle", "fashion", "clothing", "trousers",
+                "city of", "dragon age", "bandcamp",
+            ))
+            if collision:
+                continue
+            score = 4 * host_hits + 2 * title_hits - rank
+            if host_label in company_tokens or host_label == joined_name or host_alias_match:
+                score += 3
+            if event_name and event_name.lower().split()[0] in text:
+                score += 2
+            if score > candidates.get(domain, (-1, ""))[0]:
+                candidates[domain] = (score, title)
+        if not candidates:
+            continue
+        ordered = sorted(candidates.items(), key=lambda item: item[1][0], reverse=True)
+        best_domain, (best_score, _) = ordered[0]
+        # A single-word brand is ambiguous; use only a strong, unique result.
+        if len(company_tokens) == 1 and best_score < 4:
+            continue
+        if len(ordered) > 1 and best_score - ordered[1][1][0] < 2:
+            continue
+        return best_domain
     return None
 
 
@@ -67,7 +148,7 @@ def extract_impressum(domain: str) -> tuple[str | None, dict[str, str | None]]:
     found_url, page_text = None, ""
     for url in _candidate_impressum_urls(domain):
         try:
-            html = fetch_page(url)
+            html = fetch_page(url, timeout=8.0)
         except Exception:
             continue
         soup = BeautifulSoup(html, "html.parser")

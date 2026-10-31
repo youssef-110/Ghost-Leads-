@@ -144,6 +144,7 @@ def fetch_page(
     delay: float = 1.0,
     use_cache: bool = True,
     render_if_needed: bool = False,
+    timeout: float = 25.0,
 ) -> str:
     """Fetch a public HTML page; render a thin JavaScript shell only when requested."""
     parsed = urlparse(url)
@@ -151,7 +152,7 @@ def fetch_page(
         raise FetchError(f"Expected an http(s) URL, got {url!r}")
     headers = {"User-Agent": USER_AGENT, "Accept": "text/html,application/xhtml+xml"}
     try:
-        with httpx.Client(headers=headers, timeout=25, follow_redirects=True) as client:
+        with httpx.Client(headers=headers, timeout=timeout, follow_redirects=True) as client:
             robots = _robot_parser(url, client, delay)
             if not robots.can_fetch(USER_AGENT, url):
                 raise FetchError(f"robots.txt disallows fetching {url}")
