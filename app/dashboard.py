@@ -82,7 +82,9 @@ with tab_leads:
                        "linkedin_url", "email", "email_status", "stage", "needle_status"]],
                  use_container_width=True, hide_index=True,
                  column_config={"linkedin_url": st.column_config.LinkColumn("LinkedIn")})
-    st.download_button("Export CSV", view.to_csv(index=False).encode("utf-8"), "ghost_leads.csv", "text/csv")
+    # scraped text can start with = + - @: prefix a quote so spreadsheets do not run it as a formula
+    safe = view.map(lambda v: "'" + v if isinstance(v, str) and v[:1] in "=+-@	" else v)
+    st.download_button("Export CSV", safe.to_csv(index=False).encode("utf-8"), "ghost_leads.csv", "text/csv")
 
 with tab_att:
     st.caption("From LinkedIn posts and comments. Keep = both scores 70+, discard = any score under 40, else review.")
