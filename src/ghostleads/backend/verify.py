@@ -43,14 +43,15 @@ def main(argv=None):
     ap.add_argument("--include-seed", action="store_true")
     a = ap.parse_args(argv)
     conn = connect()
-    todo = rows(conn, "enriched", a.include_seed)[: a.limit]
+    todo = rows(conn, "enriched", a.include_seed, in_aiark=0)[: a.limit]
     counts = {}
-    with enrich.blitz() as c:
-        for r in todo:
-            s = status(c, r["email"])
-            db.update(conn, r["id"], email_status=s, stage="verified")
-            counts[s] = counts.get(s, 0) + 1
-            print(f"  {r['domain']:<24} {s:<8} {r['email'] or '-'}")
+    if todo:
+        with enrich.blitz() as c:
+            for r in todo:
+                s = status(c, r["email"])
+                db.update(conn, r["id"], email_status=s, stage="verified")
+                counts[s] = counts.get(s, 0) + 1
+                print(f"  {r['domain']:<24} {s:<8} {r['email'] or '-'}")
     print(f"verified {len(todo)}: {counts}")
 
 

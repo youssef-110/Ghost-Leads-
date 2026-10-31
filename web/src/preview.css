@@ -1,0 +1,21 @@
+.preview-page { min-height: 100vh; display: flex; flex-direction: column; }
+.preview-nav { width: 100%; min-height: 80px; display: flex; align-items: center; justify-content: space-between; gap: 24px; border-bottom: 1px solid var(--line); }
+.preview-main { width: 100%; flex: 1; padding-top: clamp(64px, 9vw, 112px); padding-bottom: 96px; }
+.preview-main > .display { margin-top: 12px; }
+.preview-intro { max-width: 760px; margin-top: 24px; }
+.preview-grid { display: grid; grid-template-columns: minmax(210px, 1fr) minmax(0, 2fr); gap: 24px; margin: 48px 0 24px; }
+.preview-stages { display: flex; flex-direction: column; gap: 10px; }
+.preview-stage { width: 100%; min-height: 70px; border: 1px solid var(--line); border-radius: var(--r); background: var(--paper); cursor: pointer; padding: 16px; display: flex; align-items: center; gap: 12px; text-align: left; font: inherit; font-weight: 600; }
+.preview-stage span:first-child { color: var(--ember); font-size: 13px; }
+.preview-stage span:last-child { margin-left: auto; }
+.preview-stage:hover, .preview-stage.is-active { border-color: var(--ember); background: #fff7f2; }
+.preview-stage:focus-visible { outline: 2px solid var(--ember); outline-offset: 2px; }
+.preview-detail { padding: clamp(28px, 5vw, 56px); display: flex; flex-direction: column; gap: 24px; min-height: 340px; }
+.preview-detail .lead { max-width: 600px; }
+.preview-metric { margin-top: auto; border-top: 1px solid var(--line); padding-top: 18px; display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 12px; color: var(--graphite); font-size: 13px; }
+.preview-metric strong { color: var(--ink); font-size: 22px; }
+.preview-notice { padding: 18px 22px; border: 1px solid var(--line); border-radius: var(--r); background: var(--fog); color: var(--graphite); line-height: 1.6; margin-top: 24px; }
+.preview-notice strong { color: var(--ink); }
+.preview-footer { width: 100%; border-top: 1px solid var(--line); padding-top: 24px; padding-bottom: 24px; display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; font-size: 14px; color: var(--graphite); }
+.preview-footer a { color: var(--ink); font-weight: 600; }
+@media (max-width: 700px) { .preview-grid { grid-template-columns: 1fr; } .preview-main { padding-bottom: 56px; } }

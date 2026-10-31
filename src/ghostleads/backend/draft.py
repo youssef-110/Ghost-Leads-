@@ -80,14 +80,18 @@ def write_note(client, cfg, conn, r):
 def main(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument("--limit", type=int)
-    ap.add_argument("--redo", action="store_true", help="rewrite notes of drafted, unsent leads too")
+    ap.add_argument("--redo", action="store_true", help="rewrite notes only before a Needle draft/lead exists")
     ap.add_argument("--include-seed", action="store_true")
     a = ap.parse_args(argv)
     cfg = json.loads((ROOT / "outreach.json").read_text(encoding="utf-8"))
     conn = connect()
-    todo = rows(conn, "verified", a.include_seed) + (rows(conn, "drafted", a.include_seed) if a.redo else [])
+    todo = rows(conn, "verified", a.include_seed, in_aiark=0) + (rows(conn, "drafted", a.include_seed, in_aiark=0) if a.redo else [])
     # LinkedIn is the channel: a lead without a profile cannot get a note
-    todo = [r for r in todo if r["linkedin_url"] and r["owner_name"]][: a.limit]
+    todo = [r for r in todo if r["needle_ref"] is None and r["needle_status"] == "pending"
+            and r["linkedin_url"] and r["owner_name"]][: a.limit]
+    if not todo:
+        print("drafted 0/0")
+        return
     client = OpenAI(api_key=key("OPENAI_API_KEY"))
     done = 0
     for r in todo:
@@ -95,7 +99,18 @@ def main(argv=None):
         if not note:
             print(f"  {r['domain']}: note too long after 4 tries, skipped")
             continue
-        db.update(conn, r["id"], message=note, stage="drafted")
+        # The provider may claim a reviewed snapshot while the note is being
+        # generated. Never rewrite text or stage after that durable claim.
+        changed = conn.execute(
+            "UPDATE leads SET message=?, stage='drafted', updated_at=CURRENT_TIMESTAMP "
+            "WHERE id=? AND stage=? AND in_aiark=0 AND needle_ref IS NULL "
+            "AND needle_status='pending' AND message IS ? AND owner_name IS ? AND linkedin_url IS ?",
+            (note, r["id"], r["stage"], r["message"], r["owner_name"], r["linkedin_url"]),
+        )
+        conn.commit()
+        if changed.rowcount != 1:
+            print(f"  [{r['id']}]: lead changed or a Needle claim began; skipped")
+            continue
         done += 1
         print(f"--- {r['owner_name']} ({r['company_name']}), {len(note)} chars\n{note}")
     print(f"drafted {done}/{len(todo)}")

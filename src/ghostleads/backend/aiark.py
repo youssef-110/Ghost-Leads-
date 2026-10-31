@@ -29,8 +29,6 @@ def _post(client, body):
         if r.status_code == 429:  # limit is 5 req/s per key
             time.sleep(1 + attempt)
             continue
-        if r.status_code == 404:
-            return {"content": []}
         r.raise_for_status()
         return r.json()
     r.raise_for_status()
@@ -54,11 +52,23 @@ def found_domains(c, domains):
     for i in range(0, len(domains), BATCH):
         chunk = sorted({norm(d) for d in domains[i:i + BATCH]})
         page = 0
+        expected_pages = None
         while True:
             data = _post(c, {"account": {"domain": {"any": {"include": chunk}}}, "page": page, "size": 100})
-            content = data.get("content") or []
+            content = data.get("content") if isinstance(data, dict) else None
+            if not isinstance(content, list):
+                raise ValueError("AI Ark response missing company content")
+            total_pages = data.get("totalPages")
+            if type(total_pages) is not int or total_pages < 0:
+                raise ValueError("AI Ark response missing valid totalPages")
+            if expected_pages is None:
+                expected_pages = total_pages
+            elif total_pages != expected_pages:
+                raise ValueError("AI Ark totalPages changed during pagination")
+            if (total_pages > 0 and not content) or (total_pages == 0 and content):
+                raise ValueError("AI Ark empty final page or inconsistent totalPages")
             found |= {norm((co.get("link") or {}).get("domain")) for co in content} & wanted
-            if len(content) < 100 or page + 1 >= data.get("totalPages", page + 2):
+            if page + 1 >= total_pages:
                 break
             page += 1
             time.sleep(0.25)
@@ -72,19 +82,14 @@ def main(argv=None):
     ap.add_argument("--include-seed", action="store_true")
     ap.add_argument("--domains", help="comma-separated ad-hoc check, no DB writes")
     ap.add_argument("--skip-if-blocked", action="store_true",
-                    help="if AI Ark refuses API access, pass rows on as 'not checked' (in_aiark NULL), never as ghosts")
+                    help="legacy option; blocked checks leave rows at scraped for a later retry")
     a = ap.parse_args(argv)
 
+    stale = 0
     with client() as c:
         probe = c.get("/v1/payments/credits")
         if probe.status_code in (401, 403) or (probe.status_code == 429 and "not included" in probe.text):
             print(f"AI Ark unavailable: HTTP {probe.status_code} {probe.text[:120]}")
-            if a.skip_if_blocked and not a.domains:
-                conn = connect()
-                leads = rows(conn, "scraped", a.include_seed)[: a.limit]
-                for r in leads:
-                    db.update(conn, r["id"], stage="deduped")  # in_aiark stays NULL = not checked
-                print(f"passed {len(leads)} rows on unchecked; rerun dedupe when AI Ark works")
             return
         print("credits before:", credits(c))
         if a.domains:
@@ -101,9 +106,22 @@ def main(argv=None):
             hits = found_domains(c, domains) if domains else set()
             now = datetime.now(timezone.utc).isoformat(timespec="seconds")
             for r in leads:
-                f = {"in_aiark": int(norm(r["domain"]) in hits), "aiark_checked_at": now}
-                db.update(conn, r["id"], **f, **({"stage": "deduped"} if r["stage"] == "scraped" else {}))
+                # Only apply the result to the exact row/domain checked. A
+                # concurrent edit must be rechecked, not marked as a ghost.
+                changed = conn.execute(
+                    "UPDATE leads SET in_aiark=?, aiark_checked_at=?, stage=?, updated_at=CURRENT_TIMESTAMP "
+                    "WHERE id=? AND domain IS ? AND stage IS ? AND in_aiark IS ? "
+                    "AND aiark_checked_at IS ? AND event_name IS ?",
+                    (int(norm(r["domain"]) in hits), now,
+                     "deduped" if r["stage"] == "scraped" else r["stage"],
+                     r["id"], r["domain"], r["stage"], r["in_aiark"],
+                     r["aiark_checked_at"], r["event_name"]),
+                )
+                conn.commit()
+                stale += changed.rowcount != 1
         print("credits after:", credits(c))
+    if stale:
+        raise RuntimeError(f"{stale} row(s) changed during AI Ark lookup; rerun the check before later stages")
     n = len(domains)
     if n:
         print(f"checked {n}: {len(hits)} in AI Ark, {n - len(hits)} ghosts, overlap {len(hits) / n:.0%}")

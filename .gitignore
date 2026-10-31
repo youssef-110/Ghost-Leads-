@@ -1,6 +1,14 @@
 .env
+.env.*
+!.env.example
+credentials.json
+key.pem
+ghostleads.db
 data/
 __pycache__/
 *.pyc
+*.egg-info/
+.pytest_cache/
+.streamlit/secrets.toml
 .venv/
 .DS_Store

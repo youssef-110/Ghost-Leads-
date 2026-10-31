@@ -5,7 +5,8 @@
   python -m ghostleads.backend seed                    # 20 labelled SEED rows
   python -m ghostleads.backend attendees search events/web-summit-2026.json
 Stage names also work (deduped, enriched, verified, drafted, sent) and mean "produce that stage".
-Extra arguments after the step go to it, e.g. run --stage send --draft
+Extra arguments after the step go to it, e.g. run --stage send --limit 10
+The send stage previews only; bulk --draft and direct --send are disabled.
 """
 import argparse
 

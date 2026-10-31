@@ -15,10 +15,13 @@ from openai import OpenAI
 
 from ghostleads import db
 from ghostleads.backend import draft, needle, send, verify
-from ghostleads.backend.config import ROOT, connect, key
+from ghostleads.backend.config import ROOT, SEED_EVENT, connect, key
 
 MODEL = "gpt-4.1-mini"
 CLASSES = ("interested", "not_interested", "question", "later")
+
+class ReplyConflict(ValueError):
+    """Inbound evidence needs manual review; do not classify or promote this lead."""
 
 
 def classify(text):
@@ -33,28 +36,73 @@ def classify(text):
     return c if c in CLASSES else "question"
 
 
+def _update_reply_if_unchanged(conn, lead_id, r, **fields):
+    """Write inbound evidence only if the row still matches the pre-classification read."""
+    sets = ",".join(f"{column}=?" for column in fields)
+    changed = conn.execute(
+        f"UPDATE leads SET {sets},updated_at=CURRENT_TIMESTAMP "
+        "WHERE id=? AND event_name IS ? AND stage IS ? AND in_aiark IS ? "
+        "AND needle_status IS ? AND reply_text IS NULL AND reply_class IS ?",
+        (*fields.values(), lead_id, r["event_name"], r["stage"], r["in_aiark"],
+         r["needle_status"], r["reply_class"]),
+    ).rowcount
+    conn.commit()
+    return changed == 1
+
+
 def record_reply(conn, lead_id, text):
+    r = conn.execute("SELECT event_name, stage, in_aiark, needle_status, reply_text, reply_class FROM leads WHERE id=?",
+                     (lead_id,)).fetchone()
+    if r is None:
+        raise ValueError(f"lead {lead_id} does not exist")
+    if r["event_name"] == SEED_EVENT:
+        raise ValueError("SEED replies cannot be recorded")
+    if r["reply_text"] is not None:
+        raise ReplyConflict("reply already recorded; do not overwrite inbound evidence")
+    if r["stage"] != "sent" or r["in_aiark"] != 0 or r["needle_status"] not in ("sent", "accepted"):
+        # Retain inbound evidence on a real, unresponded-to lead, without
+        # promoting an unsafe row or letting it enter automatic reply handling.
+        if r["stage"] in ("replied", "booked"):
+            raise ReplyConflict(f"lead {lead_id}: already past sent stage; review inbound reply manually")
+        status = "sent_conflict" if r["needle_status"] in ("sent", "accepted", "sent_conflict") else "reply_conflict"
+        if not _update_reply_if_unchanged(conn, lead_id, r, reply_text=text, needle_status=status):
+            raise ReplyConflict(f"lead {lead_id}: inbound state changed; manual review required")
+        raise ReplyConflict(f"lead {lead_id}: inbound reply saved for manual review; unsafe AI Ark/stage/send state")
     c = classify(text)
-    db.update(conn, lead_id, reply_text=text, reply_class=c, needle_status="replied", stage="replied")
+    if not _update_reply_if_unchanged(conn, lead_id, r, reply_text=text, reply_class=c,
+                                       needle_status="replied", stage="replied"):
+        raise ReplyConflict(f"lead {lead_id}: inbound state changed; manual review required")
     return c
 
 
 def sync(conn):
     """Accepted invitations and inbound messages from Needle's lead events."""
     todo = conn.execute("SELECT * FROM leads WHERE needle_status IN ('sent','accepted') AND reply_text IS NULL"
-                        " AND linkedin_url IS NOT NULL").fetchall()
-    seen = {"accepted": 0, "replied": 0}
+                        " AND linkedin_url IS NOT NULL AND event_name<>?", (SEED_EVENT,)).fetchall()
+    seen = {"accepted": 0, "replied": 0, "conflict": 0}
     for r in todo:
         events = needle.call("needleListLeadEvents", leadId=send.needle_lead(r), limit=100).get("events", [])
         inbound = [e for e in events if any(k in e["type"] for k in ("received", "repl", "inbound"))
                    and (e.get("data") or {}).get("text")]
         if inbound:
             text = sorted(inbound, key=lambda e: e["occurredAt"])[0]["data"]["text"]
-            print(f"  [{r['id']}] {r['owner_name']}: {record_reply(conn, r['id'], text)}")
+            try:
+                result = record_reply(conn, r["id"], text)
+            except ReplyConflict as exc:
+                print(f"  conflict [{r['id']}]: {exc}")
+                seen["conflict"] += 1
+                continue
+            print(f"  [{r['id']}] {r['owner_name']}: {result}")
             seen["replied"] += 1
         elif r["needle_status"] == "sent" and any("accept" in e["type"] for e in events):
-            db.update(conn, r["id"], needle_status="accepted")
-            seen["accepted"] += 1
+            changed = conn.execute(
+                "UPDATE leads SET needle_status='accepted', updated_at=CURRENT_TIMESTAMP "
+                "WHERE id=? AND event_name<>? AND stage='sent' AND in_aiark=0 "
+                "AND needle_status='sent' AND reply_text IS NULL AND reply_class IS NULL",
+                (r["id"], SEED_EVENT),
+            ).rowcount
+            conn.commit()
+            seen["accepted"] += changed
     print(f"checked {len(todo)} sent leads: {seen}")
 
 

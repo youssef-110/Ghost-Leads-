@@ -11,7 +11,7 @@ import httpx
 
 from ghostleads import db
 from ghostleads.backend import aiark
-from ghostleads.backend.config import connect, key, rows
+from ghostleads.backend.config import SEED_EVENT, connect, key, rows
 
 BLITZ = "https://api.blitz-api.ai"
 CASCADE = [  # tier 1 = owner/MD, tier 2 = IT or commercial lead
@@ -93,7 +93,8 @@ def add_phones(conn, n):
     if n <= 0:
         return 0
     todo = conn.execute("SELECT id, linkedin_url FROM leads WHERE stage='enriched' AND in_aiark=0 "
-                        "AND linkedin_url IS NOT NULL AND phone IS NULL ORDER BY id LIMIT ?", (n,)).fetchall()
+                        "AND event_name<>? AND linkedin_url IS NOT NULL AND phone IS NULL ORDER BY id LIMIT ?",
+                        (SEED_EVENT, n)).fetchall()
     found = 0
     with aiark.client() as c:
         for r in todo:
@@ -112,20 +113,20 @@ def add_phones(conn, n):
 def main(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument("--limit", type=int)
-    ap.add_argument("--phones", type=int, default=5, help="AI Ark phone lookups for the first N (5 credits per hit)")
+    ap.add_argument("--phones", type=int, default=0, help="opt-in AI Ark phone lookups for the first N (5 credits per hit)")
     ap.add_argument("--include-seed", action="store_true")
     a = ap.parse_args(argv)
 
     conn = connect()
-    # ghosts, plus rows AI Ark could not check (in_aiark NULL); rows already in AI Ark are skipped
-    ghosts = (rows(conn, "deduped", a.include_seed, in_aiark=0)
-              + rows(conn, "deduped", a.include_seed, in_aiark=None))[: a.limit]
-    with blitz() as c:
-        for r in ghosts:
-            f = enrich_row(c, r)
-            db.update(conn, r["id"], **f)
-            print(f"  {r['domain']:<24} {f.get('enrichment_source') or 'none':<9} "
-                  f"{f.get('owner_name') or r['owner_name'] or '-'} | {f.get('linkedin_url') or '-'} | {f.get('email') or '-'}")
+    # An unchecked AI Ark row is not a ghost. Never silently advance it.
+    ghosts = rows(conn, "deduped", a.include_seed, in_aiark=0)[: a.limit]
+    if ghosts:
+        with blitz() as c:
+            for r in ghosts:
+                f = enrich_row(c, r)
+                db.update(conn, r["id"], **f)
+                print(f"  {r['domain']:<24} {f.get('enrichment_source') or 'none':<9} "
+                      f"{f.get('owner_name') or r['owner_name'] or '-'} | {f.get('linkedin_url') or '-'} | {f.get('email') or '-'}")
     phones = add_phones(conn, a.phones)
     with_person = sum(1 for r in ghosts if conn.execute(
         "SELECT linkedin_url FROM leads WHERE id=?", (r["id"],)).fetchone()[0])

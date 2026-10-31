@@ -12,6 +12,8 @@ from openai import OpenAI
 from pydantic import BaseModel, Field
 
 from .fetch import fetch_page
+from .itcon import (ITConExtractionError, extract_itcon_exhibitors,
+                    is_itcon_exhibitor_page, is_itcon_source)
 
 
 class CompanyItem(BaseModel):
@@ -49,6 +51,11 @@ def _page_material(html: str, page_url: str) -> tuple[str, list[str]]:
 
 def extract_event_page(page_url: str, *, event_url: str | None = None) -> list[Exhibitor]:
     """Extract named public participants; every returned row cites the fetched page."""
+    if is_itcon_source(page_url) or (event_url and is_itcon_source(event_url)):
+        if not is_itcon_exhibitor_page(page_url) or (
+                event_url is not None and not is_itcon_exhibitor_page(event_url)):
+            raise ITConExtractionError("IT.CON source exhibitor path changed; refusing generic extraction")
+        return extract_itcon_exhibitors(page_url)
     load_dotenv()
     if not os.getenv("OPENAI_API_KEY"):
         raise RuntimeError("OPENAI_API_KEY is missing; set it in the local .env file")
