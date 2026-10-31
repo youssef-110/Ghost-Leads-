@@ -1,0 +1,14 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "overused-font",
+        "value": "inter",
+        "createdAt": "2026-10-31T16:48:34.351Z",
+        "reason": "Claude: user's Brex style reference names Inter as the system typeface"
+      }
+    ]
+  }
+}

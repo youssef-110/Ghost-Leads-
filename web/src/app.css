@@ -96,3 +96,8 @@ tbody tr:hover { background: #fbfbfc; }
   .kpis { grid-template-columns: repeat(2, 1fr); }
   .event { flex-direction: column; align-items: flex-start; }
 }
+
+.jobline { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 13px; color: var(--graphite); margin: 8px 0 0 !important; }
+.jobline.ok { color: var(--ok); }
+.jobline code { font-size: 12px; background: var(--fog); padding: 1px 5px; border-radius: 4px; }
+.dot { display: inline-block; width: 7px; height: 7px; border-radius: 99px; background: var(--ember); }

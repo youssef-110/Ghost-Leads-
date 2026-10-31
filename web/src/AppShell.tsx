@@ -59,6 +59,28 @@ const JOB_LABEL: Record<string, string> = {
   attendee_search: "Find attendees", pipeline: "Run pipeline", queue_drafts: "Queue in Needle", sync: "Sync Needle",
 };
 
+const isBusy = (j?: Job) => !!j && (j.status === "queued" || j.status === "running");
+
+/** Live status of a run: what is happening now, or what the last run produced. */
+function JobLine({ job }: { job?: Job }) {
+  const [, tick] = useState(0);
+  useEffect(() => { if (!isBusy(job)) return; const t = setInterval(() => tick((x) => x + 1), 1000); return () => clearInterval(t); }, [job]);
+  if (!job) return null;
+  const secs = Math.max(0, Math.round((Date.now() - new Date(job.created_at).getTime()) / 1000));
+  const label = JOB_LABEL[job.kind] ?? job.kind;
+  if (job.status === "queued") return (
+    <p className="jobline"><span className="dot pulse" /> {label}: waiting for the worker · {secs}s
+      {secs > 45 && <span className="warn"> · worker offline? Start <code>python -m ghostleads.cloud worker</code></span>}</p>);
+  if (job.status === "running") return (
+    <p className="jobline"><span className="dot pulse" /> {label}: {job.kind === "attendee_search"
+      ? "searching LinkedIn posts and comments, scoring attendance" : "working"} · {secs}s</p>);
+  const r = job.result ?? {};
+  if (job.status === "failed") return <p className="jobline warn">{label} failed{typeof r.detail === "string" ? `: ${r.detail}` : ""}</p>;
+  const parts = [typeof r.attendees === "number" && `${r.attendees} people`, typeof r.leads === "number" && `${r.leads} leads`,
+    typeof r.queued === "number" && `${r.queued} queued`].filter(Boolean);
+  return <p className="jobline ok">✓ {label} done{parts.length ? ` · ${parts.join(" · ")} updated` : ""}</p>;
+}
+
 function Badge({ l }: { l: Lead }) {
   if (l.in_aiark === 0) return <span className="tag tag-ember">Not in AI Ark</span>;
   if (l.in_aiark === 1) return <span className="tag">In AI Ark</span>;
@@ -143,6 +165,9 @@ function Events({ d, ws, reload }: { d: Data; ws: Ws; reload: () => void }) {
     reload();
   }
   const run = async (kind: string, payload: Record<string, unknown>) => { await queue(ws, kind, payload); reload(); };
+  // latest job per event, so each card shows live progress
+  const lastJob = (name: string) => d.jobs.find((j) => j.payload?.event === name
+    || (Array.isArray(j.payload?.events) && (j.payload.events as string[]).includes(name)));
   return (
     <>
       <PageHead title="Events" sub="Each event becomes LinkedIn searches. Runs are processed by your Ghost Leads worker." />
@@ -158,10 +183,13 @@ function Events({ d, ws, reload }: { d: Data; ws: Ws; reload: () => void }) {
                   <h3 className="h3">{ev.name}</h3>
                   <p className="small">{[ev.city, ev.start_date && `${ev.start_date}${ev.end_date && ev.end_date !== ev.start_date ? ` – ${ev.end_date}` : ""}`].filter(Boolean).join(" · ") || "No date set"}</p>
                   <p className="small">{n} people · {leads} leads</p>
+                  <JobLine job={lastJob(ev.name)} />
                 </div>
                 <div className="event-actions">
-                  <button className="btn btn-ember btn-sm" onClick={() => run("attendee_search", { event: ev.name, limit: 10 })}>Find attendees</button>
-                  <button className="btn btn-line btn-sm" onClick={() => run("pipeline", { events: [ev.name] })}>Enrich &amp; draft</button>
+                  <button className="btn btn-ember btn-sm" disabled={isBusy(lastJob(ev.name))}
+                    onClick={() => run("attendee_search", { event: ev.name, limit: 10 })}>Find attendees</button>
+                  <button className="btn btn-line btn-sm" disabled={isBusy(lastJob(ev.name))}
+                    onClick={() => run("pipeline", { events: [ev.name] })}>Enrich &amp; draft</button>
                 </div>
               </div>
             );
