@@ -73,6 +73,9 @@ def phone(c, linkedin_url):
 
 def enrich_row(c, r):
     fields = {"stage": "enriched"}
+    if r["linkedin_url"]:  # attendee rows already name the person; only find their email
+        return {**fields, "enrichment_source": "blitz", "email": work_email(c, r["linkedin_url"]) or r["owner_email"],
+                "phone": r["owner_phone"]}
     p = decision_maker(c, r["domain"])
     if p and p["linkedin_url"]:
         fields.update(linkedin_url=p["linkedin_url"], enrichment_source="blitz",
