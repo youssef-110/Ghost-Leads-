@@ -83,7 +83,8 @@ with tab_leads:
                  use_container_width=True, hide_index=True,
                  column_config={"linkedin_url": st.column_config.LinkColumn("LinkedIn")})
     # scraped text can start with = + - @: prefix a quote so spreadsheets do not run it as a formula
-    safe = view.map(lambda v: "'" + v if isinstance(v, str) and v[:1] in "=+-@	" else v)
+    risky = ("=", "+", "-", "@", "\t", "\r")
+    safe = view.map(lambda v: "'" + v if isinstance(v, str) and (v[:1] in risky or v.lstrip()[:1] in risky) else v)
     st.download_button("Export CSV", safe.to_csv(index=False).encode("utf-8"), "ghost_leads.csv", "text/csv")
 
 with tab_att:
