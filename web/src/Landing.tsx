@@ -101,7 +101,8 @@ export default function Landing() {
           <a href="#numbers">Results</a>
         </nav>
         <div className="nav-cta">
-          <Link to="/app" className="btn btn-ember btn-sm">Explore the run</Link>
+          <Link to="/login" className="btn btn-ghost">Sign in</Link>
+          <Link to="/signup" className="btn btn-ember btn-sm">Get started</Link>
         </div>
       </header>
 
@@ -111,9 +112,12 @@ export default function Landing() {
           <h1 className="display reveal">Find event signals. Verify the gaps.</h1>
           <p className="lead reveal">
             Ghost Leads searches for people who say they are going to an event, qualifies their signals, and drafts notes
-            for human review. Explore the recorded run from our local workbench.
+            for human review. Create a workspace for your company and run it on your next event.
           </p>
-          <Link to="/app" className="btn btn-ember reveal hero-link">Explore the recorded run →</Link>
+          <div className="hero-actions reveal">
+            <Link to="/signup" className="btn btn-ember">Create your workspace</Link>
+            <Link to="/demo" className="btn btn-line">Explore the recorded run</Link>
+          </div>
           <a href="#how" className="btn btn-ghost reveal play">
             <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden><circle cx="9" cy="9" r="9" fill="var(--ember)" /><path d="M7.3 5.8v6.4L12.4 9z" fill="#fff" /></svg>
             See how it works
@@ -217,7 +221,8 @@ export default function Landing() {
       <section className="wrap section cta reveal">
         <h2 className="h2">See what the first run produced.</h2>
         <div className="cta-row">
-          <Link to="/app" className="btn btn-ember">Explore the recorded run</Link>
+          <Link to="/signup" className="btn btn-ember">Create your workspace</Link>
+          <Link to="/demo" className="btn btn-line">Explore the recorded run</Link>
         </div>
       </section>
 
@@ -230,7 +235,8 @@ export default function Landing() {
             </p>
           </div>
           <div className="foot-cols">
-            <div><b>Product</b><a href="#how">How it works</a><a href="#proof">Proof</a><Link to="/app">Recorded run</Link></div>
+            <div><b>Product</b><a href="#how">How it works</a><a href="#proof">Proof</a><Link to="/demo">Recorded run</Link></div>
+            <div><b>Account</b><Link to="/login">Sign in</Link><Link to="/signup">Create workspace</Link></div>
             <div><b>Access</b><span>Local workbench; no website accounts yet</span></div>
             <div><b>Principles</b><span>Human approval on every send</span><span>Public professional data only</span></div>
           </div>

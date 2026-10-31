@@ -1,4 +1,11 @@
+import { createClient } from "@supabase/supabase-js";
 import { useEffect, useRef, useState } from "react";
+
+// publishable key: safe in the browser; row-level security limits every query to the user's own workspace
+export const supabase = createClient(
+  import.meta.env.VITE_SUPABASE_URL ?? "https://spsaeysttztcifqjaalw.supabase.co",
+  import.meta.env.VITE_SUPABASE_KEY ?? "sb_publishable_CHvJbQUZa3NtuL7GFB5pbw_jJOmMly6",
+);
 
 export type Lead = {
   id: number; event_name: string; company_name: string | null; domain: string; owner_name: string | null;

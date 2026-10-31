@@ -94,3 +94,5 @@
   .hv-1, .hv-2, .hv-3 { margin: 0; }
   .section { padding-top: 80px; }
 }
+
+.hero-actions { display: flex; gap: 10px; flex-wrap: wrap; }
