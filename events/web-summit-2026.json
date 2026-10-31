@@ -7,6 +7,9 @@
   "city": "Lisbon",
   "url": "https://websummit.com/web-summit-2026/",
   "window_start": "2026-09-28",
+  "timezone": "Europe/Lisbon",
+  "meeting_point": "Web Summit, MEO Arena Lisbon (exact spot by message)",
+  "meeting_slots": ["Tue 10 Nov 10:30", "Wed 11 Nov 13:00", "Thu 12 Nov 15:30"],
   "not_this_event": ["Web Summit Qatar", "Web Summit Vancouver", "Web Summit Rio", "Web Summit 2025"],
   "search_terms": [
     "\"Web Summit\" Lisbon see you",

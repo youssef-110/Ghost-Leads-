@@ -11,7 +11,10 @@ import streamlit as st
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from ghostleads import db  # noqa: E402
-from ghostleads.backend import attendees, send  # noqa: E402
+from datetime import datetime  # noqa: E402
+from zoneinfo import ZoneInfo  # noqa: E402
+
+from ghostleads.backend import attendees, draft, needle, replies, send  # noqa: E402
 from ghostleads.backend.config import SEED_EVENT, connect, key  # noqa: E402
 
 st.set_page_config(page_title="Ghost Leads", layout="wide")
@@ -66,15 +69,18 @@ def balances():
 
 
 b = balances()
-verified_ghosts = int(((leads.in_aiark == 0) & (leads.stage.map(order.index) >= order.index("verified"))).sum())
+# every lead that went through verify and is not already in AI Ark (ghosts plus not-yet-checked)
+verified_leads = int(((leads.in_aiark != 1) & (leads.stage.map(order.index) >= order.index("verified"))).sum())
 spend = (b["blitz_used"] or 0) * blitz_price + ((aiark_start - b["aiark_left"]) * aiark_price
                                                  if b["aiark_left"] is not None else 0)
 c1, c2, c3 = st.columns(3)
 c1.metric("Blitz records used", b["blitz_used"] if b["blitz_used"] is not None else "n/a")
 c2.metric("AI Ark credits left", b["aiark_left"] if b["aiark_left"] is not None else "API blocked")
-c3.metric("Cost per verified ghost lead", f"${spend / verified_ghosts:.3f}" if verified_ghosts else "no verified ghosts yet")
+c3.metric("Data cost per verified lead", f"${spend / verified_leads:.4f}" if verified_leads else "no verified leads yet",
+          f"{verified_leads} leads, ${spend:.3f} total")
 
-tab_leads, tab_att, tab_msg, tab_one = st.tabs(["Leads", "Attendees", "Messages", "One lead, every stage"])
+tab_leads, tab_att, tab_msg, tab_rep, tab_one = st.tabs(
+    ["Leads", "Attendees", "Messages", "Replies & meetings", "One lead, every stage"])
 
 with tab_leads:
     view = leads.assign(badge=leads.in_aiark.map({0: "NOT IN AI ARK", 1: "in AI Ark"}).fillna("not checked"))
@@ -107,6 +113,11 @@ with tab_att:
 
 with tab_msg:
     st.caption("Edit, then queue in Needle. Nothing sends until a person approves it in the Needle inbox.")
+    qa, sy = st.columns(2)
+    if qa.button("Queue all unqueued notes in Needle"):
+        send.main(["--draft"]); st.rerun()
+    if sy.button("Sync approved / sent status from Needle"):
+        send.sync(conn); st.rerun()
     for _, r in leads[leads.message.notna()].iterrows():
         with st.container(border=True):
             st.markdown(f"**{r.owner_name}**, {r.owner_title or ''} at {r.company_name} · [{r.event_name}]"
@@ -118,6 +129,51 @@ with tab_msg:
             if q.button("Queue in Needle for review", key=f"q{r.id}", disabled=bool(r.needle_ref)):
                 db.update(conn, int(r.id), message=text)
                 send.main(["--draft", "--ids", str(int(r.id))]); st.rerun()
+
+with tab_rep:
+    st.caption("Replies come from Needle (sync) or are pasted here. You approve every reply and invite. "
+               "Book only after the lead agreed to a time.")
+    if st.button("Sync replies from Needle"):
+        replies.sync(conn); st.rerun()
+    contacted = leads[leads.needle_status.isin(["sent", "accepted", "replied"]) | leads.reply_text.notna()]
+    if contacted.empty:
+        st.info("No lead has been contacted yet. Approve notes in the Needle inbox, then sync on the Messages tab.")
+    for _, r in contacted.astype(object).where(contacted.notna(), None).iterrows():
+        with st.container(border=True):
+            st.markdown(f"**{r.owner_name}** ({r.company_name}) · Needle `{r.needle_status}` · "
+                        f"reply `{r.reply_class or '-'}` · stage `{r.stage}`")
+            if not r.reply_text:
+                txt = st.text_area("Paste their reply", key=f"p{r.id}")
+                if st.button("Classify reply", key=f"c{r.id}") and txt.strip():
+                    replies.record_reply(conn, int(r.id), txt.strip()); st.rerun()
+                continue
+            st.write(f"> {r.reply_text}")
+            if r.reply_class != "interested" or r.stage == "booked":
+                if r.stage == "booked":
+                    st.success(f"Booked: {r.meeting_start} at {r.meeting_location}")
+                    p = Path(__file__).resolve().parents[1] / "data" / "ics" / f"lead-{int(r.id)}.ics"
+                    if p.exists():
+                        st.download_button("Download invite (.ics)", p.read_bytes(), p.name, "text/calendar",
+                                           key=f"i{r.id}")
+                continue
+            key_p = f"prop{r.id}"
+            if st.button("Draft slot proposal", key=f"g{r.id}"):
+                st.session_state[key_p] = replies.propose(conn, r)
+            if key_p in st.session_state:
+                prop = st.text_area("Proposal", st.session_state[key_p], key=f"t{r.id}", max_chars=1900)
+                if st.button("Queue proposal in Needle for review", key=f"n{r.id}"):
+                    needle.call("needleCreateDraft", connectedAccountId=needle.linkedin_account(),
+                                leadId=send.needle_lead(r), action="linkedin_message", text=prop)
+                    st.success("Queued. Approve it in the Needle inbox.")
+            with st.form(f"book{r.id}"):
+                card = draft.event_card(r.event_name) or {}
+                d = st.date_input("Confirmed date")
+                t = st.time_input("Confirmed time")
+                loc = st.text_input("Meeting point", card.get("meeting_point") or r.event_name)
+                agreed = st.checkbox("The lead confirmed this exact time in writing")
+                if st.form_submit_button("Book meeting") and agreed:
+                    tz = ZoneInfo(card.get("timezone") or "Europe/Berlin")
+                    replies.book(conn, int(r.id), datetime.combine(d, t, tzinfo=tz), loc); st.rerun()
 
 with tab_one:
     if len(leads):

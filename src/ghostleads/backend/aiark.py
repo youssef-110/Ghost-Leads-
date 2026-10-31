@@ -71,9 +71,21 @@ def main(argv=None):
     ap.add_argument("--limit", type=int)
     ap.add_argument("--include-seed", action="store_true")
     ap.add_argument("--domains", help="comma-separated ad-hoc check, no DB writes")
+    ap.add_argument("--skip-if-blocked", action="store_true",
+                    help="if AI Ark refuses API access, pass rows on as 'not checked' (in_aiark NULL), never as ghosts")
     a = ap.parse_args(argv)
 
     with client() as c:
+        probe = c.get("/v1/payments/credits")
+        if probe.status_code in (401, 403) or (probe.status_code == 429 and "not included" in probe.text):
+            print(f"AI Ark unavailable: HTTP {probe.status_code} {probe.text[:120]}")
+            if a.skip_if_blocked and not a.domains:
+                conn = connect()
+                leads = rows(conn, "scraped", a.include_seed)[: a.limit]
+                for r in leads:
+                    db.update(conn, r["id"], stage="deduped")  # in_aiark stays NULL = not checked
+                print(f"passed {len(leads)} rows on unchecked; rerun dedupe when AI Ark works")
+            return
         print("credits before:", credits(c))
         if a.domains:
             domains = [norm(d) for d in a.domains.split(",") if d.strip()]
@@ -82,12 +94,15 @@ def main(argv=None):
                 print(f"  {'IN AI ARK' if d in hits else 'GHOST    '}  {d}")
         else:
             conn = connect()
-            leads = rows(conn, "scraped", a.include_seed)[: a.limit]
+            # scraped rows, plus rows passed on unchecked while AI Ark was blocked
+            late = [r for s in db.STAGES[1:] for r in rows(conn, s, a.include_seed, aiark_checked_at=None)]
+            leads = (rows(conn, "scraped", a.include_seed) + late)[: a.limit]
             domains = [r["domain"] for r in leads]
             hits = found_domains(c, domains) if domains else set()
             now = datetime.now(timezone.utc).isoformat(timespec="seconds")
             for r in leads:
-                db.update(conn, r["id"], in_aiark=int(norm(r["domain"]) in hits), aiark_checked_at=now, stage="deduped")
+                f = {"in_aiark": int(norm(r["domain"]) in hits), "aiark_checked_at": now}
+                db.update(conn, r["id"], **f, **({"stage": "deduped"} if r["stage"] == "scraped" else {}))
         print("credits after:", credits(c))
     n = len(domains)
     if n:

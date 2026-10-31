@@ -9,7 +9,7 @@ Extra arguments after the step go to it, e.g. run --stage send --draft
 """
 import argparse
 
-from ghostleads.backend import aiark, attendees, draft, enrich, seed, send, verify
+from ghostleads.backend import aiark, attendees, draft, enrich, replies, seed, send, verify
 
 STEPS = {"dedupe": aiark.main, "enrich": enrich.main, "verify": verify.main, "draft": draft.main, "send": send.main}
 ALIASES = {"deduped": "dedupe", "enriched": "enrich", "verified": "verify", "drafted": "draft", "sent": "send"}
@@ -24,15 +24,18 @@ def main():
     group.add_argument("--all", action="store_true")
     sub.add_parser("seed")
     sub.add_parser("attendees", add_help=False)
+    sub.add_parser("replies", add_help=False)
     a, rest = ap.parse_known_args()
     if a.cmd == "seed":
         return seed.main()
     if a.cmd == "attendees":
         return attendees.main(rest)
+    if a.cmd == "replies":
+        return replies.main(rest)
     if a.all:
         for name, step in STEPS.items():
             print(f"=== {name}")
-            step([])  # send without flags = dry run
+            step(["--skip-if-blocked"] if name == "dedupe" else [])  # send without flags = dry run
         return
     STEPS[ALIASES.get(a.stage, a.stage)](rest)
 

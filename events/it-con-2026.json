@@ -1,0 +1,12 @@
+{
+  "name": "IT.CON 2026",
+  "variants": ["IT.CON", "ITCON", "IT.CON by CYBR360"],
+  "hashtags": ["#itcon", "#itcon2026", "#CYBR360"],
+  "start": "2026-09-29",
+  "end": "2026-09-29",
+  "city": "Saarbrücken",
+  "url": "https://it-con-messe.de/die-messe/aussteller",
+  "window_start": "2026-08-15",
+  "not_this_event": ["IT.CON 2025"],
+  "search_terms": ["IT.CON Saarbrücken", "#itcon2026"]
+}

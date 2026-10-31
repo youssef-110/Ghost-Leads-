@@ -117,7 +117,9 @@ def main(argv=None):
     a = ap.parse_args(argv)
 
     conn = connect()
-    ghosts = rows(conn, "deduped", a.include_seed, in_aiark=0)[: a.limit]
+    # ghosts, plus rows AI Ark could not check (in_aiark NULL); rows already in AI Ark are skipped
+    ghosts = (rows(conn, "deduped", a.include_seed, in_aiark=0)
+              + rows(conn, "deduped", a.include_seed, in_aiark=None))[: a.limit]
     with blitz() as c:
         for r in ghosts:
             f = enrich_row(c, r)
