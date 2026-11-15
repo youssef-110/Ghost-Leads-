@@ -13,7 +13,7 @@ ROOT = Path(__file__).resolve().parents[1]
 @skipUnless(importlib.util.find_spec("streamlit"), "Streamlit not installed in this interpreter")
 class DashboardAppTests(TestCase):
     def setUp(self):
-        self.folder = TemporaryDirectory(dir=Path.home() / "AppData" / "Local" / "hermes" / "cache" / "scratch")
+        self.folder = TemporaryDirectory()
         self.addCleanup(self.folder.cleanup)
         self.path = Path(self.folder.name) / "snapshot.db"
         with closing(sqlite3.connect(self.path)) as conn:

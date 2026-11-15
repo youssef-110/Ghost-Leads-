@@ -19,11 +19,7 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -r requirements.txt -e . pytest
       - name: Run tests
-        run: |
-          python -m pytest -q && exit 0
-          OUT=$(python -m pytest -q -x --tb=short 2>&1 | tail -35 | tr '\n' '~')
-          echo "::error::$OUT"
-          exit 1
+        run: python -m pytest -q
 
   web:
     runs-on: ubuntu-latest

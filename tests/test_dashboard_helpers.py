@@ -13,7 +13,7 @@ from app.dashboard_helpers import load_snapshot, summarize, filter_leads, queue_
 
 class DashboardHelpersTests(unittest.TestCase):
     def test_snapshot_excludes_seed_and_counts_exact_stages(self):
-        with tempfile.TemporaryDirectory(dir=Path.home() / "AppData" / "Local" / "hermes" / "cache" / "scratch") as folder:
+        with tempfile.TemporaryDirectory() as folder:
             path = Path(folder) / "leads.db"
             with closing(sqlite3.connect(path)) as conn:
                 conn.executescript((ROOT / "schema.sql").read_text(encoding="utf-8"))
