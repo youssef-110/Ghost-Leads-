@@ -51,6 +51,28 @@ export function groupJobs(jobs: Job[], query: string, location?: string): Discov
   return [...companies.values()];
 }
 
+const LEGAL = /\b(inc|incorporated|llc|ltd|limited|gmbh|ag|se|kg|ug|co|corp|corporation|company|sa|sas|bv|plc|group|holding|holdings)\b/g;
+/** "Enpal GmbH" and "enpal" compare equal; anything looser risks attaching the wrong company's website. */
+export const sameCompany = (a: string, b: string) => {
+  const norm = (s: string) => s.toLowerCase().replace(/[^\p{L}\p{N} ]/gu, " ").replace(LEGAL, " ").replace(/\s+/g, "");
+  return norm(a) !== "" && norm(a) === norm(b);
+};
+
+/** Job boards publish no company website, so look each name up (Clearbit's public autocomplete) and keep exact matches only. */
+async function addWebsites(items: DiscoverItem[]): Promise<number> {
+  let found = 0;
+  await Promise.all(items.slice(0, 40).map(async (it) => {
+    const hits = await apiJson<{ name: string; domain: string }[]>(
+      "https://autocomplete.clearbit.com/v1/companies/suggest?query=" + encodeURIComponent(it.company_name), {}, 4000).catch(() => []);
+    const hit = hits.find((h) => sameCompany(h.name, it.company_name));
+    if (!hit?.domain) return;
+    it.website = `https://${hit.domain}`;
+    it.domain = hit.domain.toLowerCase();
+    found++;
+  }));
+  return found;
+}
+
 export async function hiring(query: string, location: string | undefined, limit: number): Promise<{ items: DiscoverItem[]; note: string | null }> {
   // Himalayas only filters by country and rejects anything else ("Berlin"): then it simply has no matches
   const remote = himalayas(query, location).catch((e) => { if (location) return []; throw e; });
@@ -58,11 +80,12 @@ export async function hiring(query: string, location: string | undefined, limit:
   const jobs = results.flatMap((r) => (r.status === "fulfilled" ? r.value : []));
   if (results.every((r) => r.status === "rejected")) throw (results[0] as PromiseRejectedResult).reason;
   const items = groupJobs(jobs, query, location).sort((a, b) => b.signals.length - a.signals.length).slice(0, limit);
+  const matched = await addWebsites(items);
   const down = results.some((r) => r.status === "rejected") ? " One of the two job boards did not answer." : "";
   return {
     items,
     note: (items.length
-      ? "Roles from Himalayas and Arbeitnow. Job boards do not publish company websites, so find each site before enriching."
+      ? `Roles from Himalayas and Arbeitnow. Websites matched by exact company name for ${matched} of ${items.length}; check them before outreach.`
       : "No open roles match. Job titles are matched literally: try one word, such as a skill or a job title.") + down,
   };
 }

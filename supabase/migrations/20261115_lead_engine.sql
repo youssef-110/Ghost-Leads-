@@ -125,3 +125,16 @@ revoke execute on function public.gl_my_workspace(text) from public, anon;
 grant execute on function public.gl_my_workspace(text) to authenticated;
 -- workspaces are created only through gl_my_workspace()
 revoke insert on public.gl_workspaces from authenticated, anon;
+
+-- Public contact form (/contact): insert-only for visitors, readable only from the dashboard / service role.
+create table if not exists public.gl_contact (
+  id bigint generated always as identity primary key,
+  email text not null check (length(email) between 5 and 200 and email like '%_@_%._%'),
+  topic text not null default 'General' check (length(topic) <= 80),
+  message text not null check (length(message) between 1 and 4000),
+  created_at timestamptz not null default now()
+);
+alter table public.gl_contact enable row level security;
+revoke all on public.gl_contact from anon, authenticated;
+grant insert (email, topic, message) on public.gl_contact to anon, authenticated;
+create policy contact_write on public.gl_contact for insert to anon, authenticated with check (true);

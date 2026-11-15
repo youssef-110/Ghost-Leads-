@@ -164,3 +164,11 @@ test("hiring: jobs are matched on title and tags, grouped by company, with the j
   assert.deepEqual(groupJobs(jobs, "react", "berlin").map((i) => i.company_name), ["Acme GmbH", "Globex"]); // Himalayas is filtered upstream
   assert.deepEqual(groupJobs(jobs, "react developer senior").map((i) => i.company_name), ["Acme GmbH"]);
 });
+
+test("hiring: a website is attached only on an exact company-name match", async () => {
+  const { sameCompany } = await import("../../server/sources/hiring.js");
+  assert.equal(sameCompany("Enpal GmbH", "enpal"), true);
+  assert.equal(sameCompany("Purple Sales Solutions Inc.", "Purple Sales Solutions"), true);
+  assert.equal(sameCompany("Enpal", "En Palabras"), false);
+  assert.equal(sameCompany("GmbH", "Inc"), false);
+});

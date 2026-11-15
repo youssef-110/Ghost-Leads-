@@ -4,9 +4,8 @@ import { Logo } from "./Logo";
 import { usePageMeta } from "./meta";
 import { dailyLimits, type PlanName } from "./plans";
 
-// Placeholder address until the owner sets the real inbox.
-const CONTACT = "hello@ghostleads.app";
-const mailto = (subject: string) => `mailto:${CONTACT}?subject=${encodeURIComponent(subject)}`;
+// Messages go to the gl_contact table through /contact, so no inbox address is published.
+const contact = (topic: string) => `/contact?topic=${encodeURIComponent(topic)}`;
 
 const NAV = [
   { to: "/#sources", label: "Sources" },
@@ -16,7 +15,7 @@ const NAV = [
 ];
 
 export function ContactLink({ subject, className, children }: { subject: string; className?: string; children?: React.ReactNode }) {
-  return <a href={mailto(subject)} className={className}>{children ?? CONTACT}</a>;
+  return <Link to={contact(subject)} className={className}>{children ?? "our contact form"}</Link>;
 }
 
 // One public page is on screen at a time, so the last location can live outside React.
@@ -127,7 +126,7 @@ function SiteFooter() {
             <Link to="/bot">About our crawler</Link>
             <Link to="/privacy">Privacy</Link>
             <Link to="/terms">Terms</Link>
-            <a href={mailto("Ghost Leads")}>{CONTACT}</a>
+            <Link to="/contact">Contact</Link>
           </div>
         </nav>
       </div>
@@ -165,8 +164,8 @@ export function DraftNotice({ children }: { children: React.ReactNode }) {
 
 const PLANS: { name: PlanName; price: string; note: string; cta: React.ReactNode }[] = [
   { name: "Free", price: "€0", note: "Daily limits, no card.", cta: <Link to="/signup" className="btn btn-ink">Start free</Link> },
-  { name: "Pro", price: "Custom", note: "For people building lists every day.", cta: <a href={mailto("Ghost Leads Pro")} className="btn btn-line">Talk to us</a> },
-  { name: "Team", price: "Custom", note: "For teams that share the work.", cta: <a href={mailto("Ghost Leads Team")} className="btn btn-line">Talk to us</a> },
+  { name: "Pro", price: "Custom", note: "For people building lists every day.", cta: <Link to={contact("Ghost Leads Pro")} className="btn btn-line">Talk to us</Link> },
+  { name: "Team", price: "Custom", note: "For teams that share the work.", cta: <Link to={contact("Ghost Leads Team")} className="btn btn-line">Talk to us</Link> },
 ];
 
 /** The three plan cards. `as` is the heading level that fits the page they sit on. */

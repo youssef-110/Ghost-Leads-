@@ -319,3 +319,9 @@
   .site .botfacts > div { grid-template-columns: minmax(0, 1fr); }
   .site .faq-a { padding-right: 0; }
 }
+
+/* contact form */
+.site .contact-form { display: grid; gap: 18px; max-width: 520px; }
+.site .contact-form textarea.input { min-height: 140px; }
+.site .contact-hp { position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0; }
+.site .contact-err { margin: 0; font-size: 14px; color: #b3261e; }

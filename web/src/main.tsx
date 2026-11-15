@@ -10,6 +10,7 @@ const Pricing = lazy(() => import("./site/Pricing"));
 const Bot = lazy(() => import("./site/Bot"));
 const Privacy = lazy(() => import("./site/Privacy"));
 const Terms = lazy(() => import("./site/Terms"));
+const Contact = lazy(() => import("./site/Contact"));
 const Auth = lazy(() => import("./Auth"));
 const AppShell = lazy(() => import("./AppShell"));
 
@@ -26,6 +27,7 @@ createRoot(document.getElementById("root")!).render(
           <Route path="/bot" element={<Bot />} />
           <Route path="/privacy" element={<Privacy />} />
           <Route path="/terms" element={<Terms />} />
+          <Route path="/contact" element={<Contact />} />
           <Route path="/demo" element={<Navigate to="/" replace />} />
           <Route path="/login" element={<Auth mode="login" />} />
           <Route path="/signup" element={<Auth mode="signup" />} />

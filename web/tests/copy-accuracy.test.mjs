@@ -34,7 +34,7 @@ test('sample companies use the reserved .example domain', () => {
       assert.match(domain, /\.example$/, `${name}: "${domain}" looks like a real domain in sample data`);
     }
     for (const [email] of text.matchAll(/[\w.+-]+@[\w-]+(?:\.[\w-]+)+/g)) {
-      assert.match(email, /\.example$|^hello@ghostleads\.app$/, `${name}: "${email}" looks like a real address`);
+      assert.match(email, /\.example$/, `${name}: "${email}" looks like a real address`);
     }
   });
   assert.ok(seen >= 20, 'sample rows were found and checked');
@@ -65,7 +65,8 @@ test('plans show no invented prices and paid plans are a contact link', () => {
   const chrome = pages['chrome.tsx'];
   assert.match(chrome, /price: "€0"/);
   assert.equal(chrome.split('price: "Custom"').length - 1, 2, 'Pro and Team are priced "Custom"');
-  assert.match(chrome, /mailto:/, 'paid plans link to a contact address, not a checkout');
+  assert.match(chrome, /\/contact\?topic=/, 'paid plans link to the contact form, not a checkout');
+  assert.doesNotMatch(chrome, /mailto:/, 'no inbox address is published');
   assert.doesNotMatch(chrome, /checkout|stripe|buy now|subscribe/i);
 });
 
@@ -119,11 +120,11 @@ test('search and sharing basics state only what is true', () => {
   assert.match(robots, /^User-agent: \*\nAllow: \/\nDisallow: \/app\n/);
   assert.match(robots, new RegExp(`Sitemap: ${origin}/sitemap\\.xml`));
   const locs = [...read('../public/sitemap.xml').matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1]);
-  assert.deepEqual(locs, ['/', '/pricing', '/bot'].map((path) => origin + path));
+  assert.deepEqual(locs, ['/', '/pricing', '/bot', '/contact'].map((path) => origin + path));
 
   // Each page names its own address, title and description; the home page keeps the ones in index.html.
   assert.match(pages['Home.tsx'], /<SitePage path="\/">/);
-  for (const [name, path] of [['Pricing.tsx', '/pricing'], ['Bot.tsx', '/bot'], ['Privacy.tsx', '/privacy'], ['Terms.tsx', '/terms']]) {
+  for (const [name, path] of [['Pricing.tsx', '/pricing'], ['Bot.tsx', '/bot'], ['Privacy.tsx', '/privacy'], ['Terms.tsx', '/terms'], ['Contact.tsx', '/contact']]) {
     assert.match(pages[name], new RegExp(`<SitePage path="${path}" title="[^"]+" description="[^"]{50,}">`), `${name}: own title and description`);
   }
 

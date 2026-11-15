@@ -5,6 +5,8 @@ businesses in a city, companies from a web search, startups, companies that are 
 exhibitor directory), it finds them from public sources, reads each company's own website for contact details, scores
 how reachable each company is, and drafts a first message for you to review. Nothing is ever sent by the product.
 
+**Live:** https://ghost-leads-dusky.vercel.app
+
 It started as a hackathon tool (Python CLI, Streamlit, SQLite) for finding leads at trade fairs. That pipeline still
 exists and is surfaced in the app as "Event signals"; see [Event signals](#event-signals-local-worker).
 
@@ -198,6 +200,15 @@ Known shortcuts:
 - The list page loads the first 1,000 companies of a list; search, enrich and export apply to those.
 - `supabase/migrations/20261031_base.sql` was reconstructed from the hosted database and has not yet been run
   against a fresh Supabase project (see [docs/SELF_HOSTING.md](docs/SELF_HOSTING.md)).
+
+## Operating notes
+
+- **Contact form.** `/contact` writes to the `gl_contact` table (insert-only for visitors). Read new messages in the
+  Supabase table editor or with `select * from gl_contact order by created_at desc;`. Plan requests, crawler opt-outs
+  and data removal requests all arrive there.
+- **Plans.** `update gl_workspaces set plan = 'pro' where id = '...';` (or `team`). There is no billing integration.
+- **Hiring leads.** Job boards publish no company website, so each name is looked up through Clearbit's public
+  company autocomplete and a website is attached only on an exact name match.
 
 ## Responsible use
 
