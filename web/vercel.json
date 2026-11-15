@@ -1,1 +1,6 @@
-{"framework":"vite","outputDirectory":"dist","rewrites":[{"source":"/(.*)","destination":"/index.html"}]}
+{
+  "framework": "vite",
+  "outputDirectory": "dist",
+  "functions": { "api/*.ts": { "maxDuration": 60 } },
+  "rewrites": [{ "source": "/((?!api/|@)[^.]*)", "destination": "/index.html" }]
+}

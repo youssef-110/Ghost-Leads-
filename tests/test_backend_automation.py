@@ -747,6 +747,7 @@ def test_draft_redo_does_not_change_message_with_queued_needle_draft(store, monk
         return "Revised note"
 
     monkeypatch.setattr(draft, "write_note", write_note)
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")  # write_note is stubbed; CI has no .env
     draft.main(["--redo"])
     assert seen == [editable]
     assert tuple(store.execute("SELECT message, needle_ref FROM leads WHERE id=?", (queued,)).fetchone()) == (

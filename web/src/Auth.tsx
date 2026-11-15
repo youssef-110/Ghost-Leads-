@@ -45,10 +45,15 @@ export default function Auth({ mode }: { mode: "login" | "signup" }) {
       <div className="auth-side">
         <Link to="/"><Logo dark /></Link>
         <div>
-          <h2 className="auth-quote">Walk into your next event with the guest list already qualified.</h2>
-          <p className="foot-muted">Every lead links back to its source. Nothing sends without your approval.</p>
+          <h2 className="auth-quote">Find the companies worth contacting, and the person to contact.</h2>
+          <p className="foot-muted">Search any source, enrich every company, and keep the proof.</p>
+          <ul className="auth-points">
+            <li>Local businesses, startups, hiring signals, directories and your own imports</li>
+            <li>Emails, people, phones and tech, each linked to the page it came from</li>
+            <li>Nothing sends without your approval</li>
+          </ul>
         </div>
-        <span className="foot-muted small">Ghost Leads · GTM Hackathon Berlin 2026</span>
+        <span className="foot-muted small">Ghost Leads</span>
       </div>
       <main className="auth-main">
         <form className="auth-form" onSubmit={submit}>
@@ -74,7 +79,7 @@ export default function Auth({ mode }: { mode: "login" | "signup" }) {
               onChange={(e) => setPassword(e.target.value)} placeholder="At least 8 characters"
               autoComplete={signup ? "new-password" : "current-password"} />
           </label>
-          {msg && <div className={`notice ${msg.kind === "err" ? "notice-err" : "notice-ok"}`} role="status">{msg.text}</div>}
+          {msg && <div className={`notice ${msg.kind === "err" ? "notice-err" : "notice-ok"}`} role={msg.kind === "err" ? "alert" : "status"}>{msg.text}</div>}
           <button className="btn btn-ember" style={{ width: "100%", marginTop: 8 }} disabled={busy}>
             {busy ? "One moment…" : signup ? "Create workspace" : "Sign in"}
           </button>
