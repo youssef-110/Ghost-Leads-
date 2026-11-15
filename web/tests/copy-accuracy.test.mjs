@@ -3,7 +3,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 
-const read = (p) => readFileSync(new URL(p, import.meta.url), 'utf8');
+// Windows checkouts may convert line endings; the assertions are written for LF
+const read = (p) => readFileSync(new URL(p, import.meta.url), 'utf8').replaceAll('\r\n', '\n');
 const siteDir = new URL('../src/site/', import.meta.url);
 // Every public page and the modules they share. New files under src/site are picked up without touching this list.
 const pages = {
