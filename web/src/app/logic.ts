@@ -81,8 +81,10 @@ export const slug = (s: string) =>
   s.normalize("NFKD").replace(/\p{M}+/gu, "").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "-").replace(/^-+|-+$/g, "").slice(0, 80);
 
 /** Identity of a company inside one list: its domain, else a slug of name + city. */
-export const prospectKey = (i: Pick<DiscoverItem, "domain" | "company_name" | "city">) =>
-  (i.domain && normDomain(i.domain)) || slug(`${i.company_name} ${i.city ?? ""}`) || "company";
+/** A person-first lead (LinkedIn) is keyed by profile, so two people at one company stay two rows. */
+export const prospectKey = (i: Pick<DiscoverItem, "domain" | "company_name" | "city" | "person">) =>
+  (i.person?.linkedin && `li:${i.person.linkedin.split("/in/")[1] ?? slug(i.person.name)}`)
+  || (i.domain && normDomain(i.domain)) || slug(`${i.company_name} ${i.city ?? ""}`) || "company";
 
 /** Rows for a gl_prospects upsert on (list_id, key); duplicates inside the batch are dropped.
  *  Columns are picked one by one: an unexpected field in a server response must not break the insert. */
@@ -97,6 +99,7 @@ export function toProspectRows(items: DiscoverItem[], workspace_id: string, list
       domain: i.domain ?? null, website: i.website ?? null, phone: i.phone ?? null, email: i.email ?? null,
       address: i.address ?? null, city: i.city ?? null, country: i.country ?? null, industry: i.industry ?? null,
       description: i.description ?? null, source: i.source, source_url: i.source_url ?? null, signals: i.signals ?? [],
+      people: i.person ? [i.person] : [],
     }];
   });
 }
@@ -108,6 +111,7 @@ export function listNameFor(p: DiscoverParams | { source: "import" }, today = ne
   else if (p.source === "web") name = p.query.trim();
   else if (p.source === "startups") name = join(p.query, p.industry, p.location, p.hiring && "hiring").join(" · ") || "Startups";
   else if (p.source === "hiring") name = join(`Hiring: ${p.query.trim()}`, p.location).join(" · ");
+  else if (p.source === "linkedin") name = join(`LinkedIn ${p.mode}: ${p.query.trim()}`, p.location).join(" · ");
   else if (p.source === "directory") name = normDomain(p.url) ? `Directory: ${normDomain(p.url)}` : "Directory";
   else name = `Import ${today}`;
   return name.slice(0, 160) || "New list";

@@ -107,15 +107,15 @@ test("verify meters one unit per address and caps a call at 50", async () => {
   assert.equal(calls.length, 1);
 });
 
-test("draft answers 503 without an OpenAI key, before metering", async () => {
+test("draft works without an OpenAI key: a metered template built from the request", async () => {
   const calls = supabase();
   const saved = process.env.OPENAI_API_KEY;
   delete process.env.OPENAI_API_KEY;
   try {
     const out = await call(draft, { ws: WS, channel: "email", offer: "We sell widgets", prospect: { company_name: "Acme" } });
-    assert.equal(out.status, 503);
-    assert.equal((out.body as { code: string }).code, "not_configured");
-    assert.equal(calls.length, 0);
+    assert.equal(out.status, 200);
+    assert.match((out.body as { message: string }).message, /^Hi Acme team,/);
+    assert.equal(calls.length, 1, "metered like an AI draft");
   } finally {
     if (saved !== undefined) process.env.OPENAI_API_KEY = saved;
   }

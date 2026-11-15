@@ -51,7 +51,7 @@ All optional for the hosted project. Set them in the Vercel project, or in `.env
 | Variable | Read by | Purpose |
 | --- | --- | --- |
 | `OPENAI_API_KEY`, `OPENAI_MODEL` | functions | Drafting, AI extraction, AI fallback for directory pages |
-| `SERPER_API_KEY` | functions | Web search source |
+| `SERPER_API_KEY` or `BRAVE_API_KEY` | functions | Web search and LinkedIn sources |
 | `OVERPASS_URL` | functions | Overpass server for the local-business source |
 | `SUPABASE_URL`, `SUPABASE_ANON_KEY` | functions | Your own Supabase project for `gl_use` |
 | `VITE_SUPABASE_URL`, `VITE_SUPABASE_KEY` | browser (build time) | Your own Supabase project for the client |

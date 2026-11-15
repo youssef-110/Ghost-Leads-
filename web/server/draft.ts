@@ -2,7 +2,7 @@
 // src/ghostleads/backend/draft.py and outreach.json: only facts in the input, nothing invented.
 import type { DraftRequest, DraftResponse } from "../shared/types.js";
 import { ApiFail } from "./http.js";
-import { chatJson, type ChatMessage } from "./openai.js";
+import { aiConfigured, chatJson, type ChatMessage } from "./openai.js";
 
 const LINKEDIN_MAX_CHARS = 280;
 const EMAIL_MAX_WORDS = 90;
@@ -25,7 +25,27 @@ const SCHEMA = {
 
 const words = (s: string): number => s.split(/\s+/).filter(Boolean).length;
 
+/** No AI key: a plain opener assembled from the same facts, for the user to edit.
+ *  shortcut: English only and one fixed structure; the AI path writes in the language of the offer. */
+export function templateDraft(channel: DraftRequest["channel"], offer: string, p: DraftRequest["prospect"]): DraftResponse {
+  const first = p.person?.name?.trim().split(/\s+/)[0];
+  const hello = first ? `Hi ${first},` : `Hi ${p.company_name} team,`;
+  const role = p.signals?.find((s) => s.kind === "hiring")?.label.replace(/^Hiring: /, "");
+  const opener = role ? `I saw ${p.company_name} is hiring for ${role}.`
+    : p.person?.title ? `I am writing to you as ${p.person.title}${p.person.name === p.company_name ? "" : ` at ${p.company_name}`}.`
+    : `I came across ${p.company_name}${p.city ? ` in ${p.city}` : ""}.`;
+  const pitch = offer.trim().replace(/[.!?]*$/, ".");
+  const ask = "Would a short call be useful?";
+  if (channel === "email") {
+    return { subject: `Quick question for ${p.company_name}`.slice(0, 80), message: `${hello}\n\n${opener} ${pitch}\n\n${ask}` };
+  }
+  const room = LINKEDIN_MAX_CHARS - `${hello} ${opener}  ${ask}`.length;
+  const short = pitch.length > room ? pitch.slice(0, Math.max(0, room - 1)) + "…" : pitch;
+  return { subject: null, message: `${hello} ${opener} ${short} ${ask}`.slice(0, LINKEDIN_MAX_CHARS) };
+}
+
 export async function draft(channel: DraftRequest["channel"], offer: string, prospect: DraftRequest["prospect"]): Promise<DraftResponse> {
+  if (!aiConfigured()) return templateDraft(channel, offer, prospect);
   const email = channel === "email";
   const format = email
     ? `Write a cold email: a subject line of at most 8 words and a body of at most ${EMAIL_MAX_WORDS} words in 2-3 short paragraphs.`

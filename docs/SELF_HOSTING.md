@@ -76,7 +76,7 @@ In the Vercel project, for Production (and Preview if you use it):
 | `SUPABASE_ANON_KEY` | The same publishable key. Read by the functions at run time. |
 | `OPENAI_API_KEY` | Optional. Enables drafting and AI extraction. |
 | `OPENAI_MODEL` | Optional. Default `gpt-4.1-mini`. |
-| `SERPER_API_KEY` | Optional. Enables the web search source reliably. |
+| `SERPER_API_KEY` or `BRAVE_API_KEY` | Optional. One of them enables the web search and LinkedIn sources. |
 | `OVERPASS_URL` | Optional. An Overpass API endpoint you are allowed to use, for fuller local-business results. |
 
 The four Supabase variables are not optional for a self-hosted instance. Without them the code falls back to the

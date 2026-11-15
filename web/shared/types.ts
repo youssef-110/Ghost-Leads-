@@ -1,6 +1,6 @@
 // Contract between the browser app (src/) and the Vercel functions (api/). Types plus one constant; no logic.
 
-export type Source = "maps" | "web" | "startups" | "hiring" | "directory" | "import";
+export type Source = "maps" | "web" | "startups" | "hiring" | "directory" | "linkedin" | "import";
 
 /** valid: mailbox domain accepts mail and the address was published by the company.
  *  risky: guessed pattern, or a domain we could not fully check. invalid: bad syntax or no mail server. */
@@ -33,6 +33,7 @@ export type DiscoverItem = {
   source: Source;
   source_url: string | null;    // where this record came from (always set when the source has a page for it)
   signals: Signal[];
+  person?: Person | null;       // set by people-first sources (linkedin): the lead is this person
 };
 
 export type DiscoverParams =
@@ -40,7 +41,8 @@ export type DiscoverParams =
   | { source: "web"; query: string; limit?: number }                           // web search -> company sites
   | { source: "startups"; query?: string; industry?: string; location?: string; hiring?: boolean; limit?: number }
   | { source: "hiring"; query: string; location?: string; limit?: number }     // companies with open roles
-  | { source: "directory"; url: string; limit?: number };                      // any list page: exhibitors, members, partners
+  | { source: "directory"; url: string; limit?: number }                       // any list page: exhibitors, members, partners
+  | { source: "linkedin"; mode: "people" | "posts"; query: string; location?: string; limit?: number }; // public pages via a search index                      // any list page: exhibitors, members, partners
 export type DiscoverRequest = { ws: string } & DiscoverParams;
 export type DiscoverResponse = { items: DiscoverItem[]; note: string | null };
 
@@ -81,7 +83,7 @@ export type DraftResponse = { subject: string | null; message: string };
 export type VerifyRequest = { ws: string; emails: string[] };
 export type VerifyResponse = { results: FoundEmail[] };
 
-export type Health = { ai: boolean; search: "serper" | "none"; version: string };
+export type Health = { ai: boolean; search: "serper" | "brave" | "none"; version: string };
 
 /** Every non-2xx response body. HTTP: 400 bad_request, 401 unauthorized, 422 blocked (robots.txt, private address,
  *  not HTML), 429 quota, 502 upstream, 503 not_configured (feature needs a provider key). */
@@ -91,7 +93,7 @@ export type ApiError = {
 };
 
 /** Row of gl_prospects (see supabase/migrations). */
-export type Prospect = Omit<DiscoverItem, "signals"> & {
+export type Prospect = Omit<DiscoverItem, "signals" | "person"> & {
   id: number; workspace_id: string; list_id: string; key: string;
   emails: FoundEmail[]; phones: string[]; socials: Socials; people: Person[]; tech: string[]; signals: Signal[];
   score: number | null; score_reasons: string[];
