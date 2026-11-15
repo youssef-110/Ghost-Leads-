@@ -19,7 +19,12 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -r requirements.txt -e . pytest
       - name: Run tests
-        run: python -m pytest -q
+        run: |
+          python -m pytest -q && exit 0
+          OUT=$(python -m pytest -q -x --tb=short 2>&1 | tail -35)
+          echo "::error::${OUT//$'
+'/%0A}"
+          exit 1
 
   web:
     runs-on: ubuntu-latest
