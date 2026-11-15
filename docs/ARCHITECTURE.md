@@ -83,6 +83,7 @@ Body: `{ ws, source, ...params, limit? }`. `limit` defaults to 25, maximum 100. 
 | `startups` | `query?`, `industry?`, `location?`, `hiring?` | Downloads a JSON file from `yc-oss.github.io/api` (hiring list, one industry, or all companies), caches it in memory for six hours, filters locally. Inactive companies and those without a website are skipped. |
 | `hiring` | `query`, `location?` | Queries Himalayas (search API) and Arbeitnow (latest roles) in parallel, matches every query word against job title and tags, groups by company. Items carry `hiring` signals that link to the job posting. These items have no website. |
 | `directory` | `url` | Fetches the page through `safeFetch`, finds repeated outbound links that look like a company list, follows same-site "next" links for up to five pages. If fewer than three companies are found and OpenAI is configured, the page text is given to the model instead and the response note says so. |
+| `linkedin` | `mode` (`people` or `posts`), `query`, `location?` | Runs `site:linkedin.com/in` or `site:linkedin.com/posts` through the configured search provider and parses names, headlines and post text from the result titles and snippets. linkedin.com itself is never requested (its robots.txt closes it to crawlers) and no LinkedIn account is used. People whose headline names an employer get a website through the exact-name lookup. |
 
 All sources deduplicate by registrable domain.
 

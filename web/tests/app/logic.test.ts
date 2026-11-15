@@ -75,6 +75,9 @@ test("slug + prospectKey", () => {
   assert.equal(prospectKey({ domain: "WWW.Acme.com", company_name: "Acme", city: null }), "acme.com");
   assert.equal(prospectKey({ domain: null, company_name: "Bäckerei Schmidt", city: "Berlin" }), "backerei-schmidt-berlin");
   assert.equal(prospectKey({ domain: null, company_name: "!!!", city: null }), "company");
+  const person = { name: "Erika Mustermann", title: null, email: null, linkedin: "https://www.linkedin.com/in/erika-m-12ab", source_url: null };
+  assert.equal(prospectKey({ domain: "acme.com", company_name: "Acme", city: null, person }), "li:erika-m-12ab", "people at one company stay separate rows");
+  assert.equal(prospectKey({ domain: null, company_name: "Erika Mustermann", city: null, person: { ...person, linkedin: null } }), "erika-mustermann");
 });
 
 test("toProspectRows drops in-batch duplicates and never stores an empty name", () => {

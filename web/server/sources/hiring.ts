@@ -59,7 +59,7 @@ export const sameCompany = (a: string, b: string) => {
 };
 
 /** Job boards publish no company website, so look each name up (Clearbit's public autocomplete) and keep exact matches only. */
-async function addWebsites(items: DiscoverItem[]): Promise<number> {
+export async function addWebsites(items: DiscoverItem[]): Promise<number> {
   let found = 0;
   await Promise.all(items.slice(0, 40).map(async (it) => {
     const hits = await apiJson<{ name: string; domain: string }[]>(

@@ -12,13 +12,15 @@ exists and is surfaced in the app as "Event signals"; see [Event signals](#event
 
 ## Features
 
-- **Find leads** from five sources:
+- **Find leads** from six sources:
   - Local businesses from OpenStreetMap (Nominatim; an Overpass server if you configure one).
   - Web search results reduced to company websites (Serper; DuckDuckGo's HTML endpoint is tried when no key is set,
     but it usually refuses automated clients).
   - Startups from the open-source Y Combinator dataset ([yc-oss/api](https://github.com/yc-oss/api)).
   - Companies with open roles, from the public Himalayas and Arbeitnow job APIs.
   - Any directory or list page (exhibitors, members, partners), read by page structure, with an LLM fallback.
+  - LinkedIn people and posts, read from a search engine's index of public LinkedIn pages (needs a search key).
+    Ghost Leads never signs in to or crawls LinkedIn.
   - Plus import: paste or upload domains (up to 1,000 per import).
 - **Enrich** a company by crawling its own site (home page plus up to six contact, imprint, team and about pages):
   email addresses with an MX check and the page each was found on, phone numbers, social profiles, named people with
@@ -110,9 +112,9 @@ in the browser bundle, so never put a secret in one.
 
 | Variable | Required | What it enables | Where |
 | --- | --- | --- | --- |
-| `OPENAI_API_KEY` | No | Drafting (`/api/draft` returns 503 without it), AI extraction with custom columns, AI fallback for directory pages without a regular structure | Vercel env / `web/.env.local` |
+| `OPENAI_API_KEY` | No | AI-written drafts (without it `/api/draft` returns a plain template built from the same facts), AI extraction with custom columns, AI fallback for directory pages without a regular structure | Vercel env / `web/.env.local` |
 | `OPENAI_MODEL` | No | Model for the above. Default `gpt-4.1-mini` | Vercel env / `web/.env.local` |
-| `SERPER_API_KEY` | No, but web search is unreliable without it | Web search source through Serper. Without it DuckDuckGo is tried and usually refuses, which returns 503 | Vercel env / `web/.env.local` |
+| `SERPER_API_KEY` or `BRAVE_API_KEY` | One of them, for the web search and LinkedIn sources | Search results through Serper (2,500 free searches once) or Brave Search (about 1,000 free searches a month, card on file). Serper wins when both are set. Without either, DuckDuckGo is tried and usually refuses, which returns 503 | Vercel env / `web/.env.local` |
 | `OVERPASS_URL` | No | Use an Overpass API server for the local-business source instead of Nominatim's tag search (more complete results). No default: the public overpass-api.de instance excludes commercial use | Vercel env / `web/.env.local` |
 | `SUPABASE_URL` | Only for your own Supabase project | Project the functions call `gl_use` on | Vercel env / `web/.env.local` |
 | `SUPABASE_ANON_KEY` | Only for your own Supabase project | Publishable (anon) key sent as `apikey` with `gl_use` | Vercel env / `web/.env.local` |
@@ -190,7 +192,7 @@ Known shortcuts:
 - **No SMTP verification.** Email checks are syntax plus an MX lookup. "valid" means "published by the company on a
   domain that accepts mail", not "this mailbox exists". Guessed addresses are always marked "risky".
 - **DuckDuckGo fallback is best-effort.** It normally answers automated clients with a bot challenge; the API then
-  returns 503 `not_configured`. Treat `SERPER_API_KEY` as required for the web search source.
+  returns 503 `not_configured`. Treat `SERPER_API_KEY` or `BRAVE_API_KEY` as required for the web search and LinkedIn sources.
 - **Local-business results are limited without Overpass.** The default Nominatim search returns at most 40 places per
   query and searches one OpenStreetMap tag per category.
 - **No JavaScript rendering.** Pages that build their content in the browser yield little or nothing.

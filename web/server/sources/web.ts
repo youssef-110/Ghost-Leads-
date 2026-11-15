@@ -6,7 +6,7 @@ import { clean, nameFromTitle, parseHtml } from "../html.js";
 import { ApiFail } from "../http.js";
 import { dedupe, item, searchResultDomain } from "./item.js";
 
-type Hit = { title: string; link: string; snippet: string };
+export type Hit = { title: string; link: string; snippet: string };
 
 async function serper(query: string, count: number): Promise<Hit[]> {
   const res = await apiJson<{ organic?: Hit[] }>("https://google.serper.dev/search", {
@@ -15,6 +15,24 @@ async function serper(query: string, count: number): Promise<Hit[]> {
     body: JSON.stringify({ q: query, num: count }),
   });
   return res.organic ?? [];
+}
+
+// Brave includes about 1,000 searches a month free of charge; it returns at most 20 results per request.
+async function brave(query: string, count: number): Promise<Hit[]> {
+  const res = await apiJson<{ web?: { results?: { title: string; url: string; description?: string }[] } }>(
+    `https://api.search.brave.com/res/v1/web/search?count=${Math.min(count, 20)}&q=${encodeURIComponent(query)}`,
+    { headers: { "x-subscription-token": process.env.BRAVE_API_KEY! } });
+  const text = (s: string | undefined) => clean((s ?? "").replace(/<[^>]+>/g, ""));
+  return (res.web?.results ?? []).map((r) => ({ title: text(r.title), link: r.url, snippet: text(r.description) }));
+}
+
+export const searchProvider = (): "serper" | "brave" | "none" =>
+  process.env.SERPER_API_KEY ? "serper" : process.env.BRAVE_API_KEY ? "brave" : "none";
+
+/** Search results from the configured provider; without a key DuckDuckGo is tried and usually refuses. */
+export function search(query: string, count: number): Promise<Hit[]> {
+  const provider = searchProvider();
+  return provider === "serper" ? serper(query, count) : provider === "brave" ? brave(query, count) : duckduckgo(query);
 }
 
 export function parseDuckDuckGo(html: string): Hit[] {
@@ -43,7 +61,7 @@ async function duckduckgo(query: string): Promise<Hit[]> {
   const hits = res.status === 200 ? parseDuckDuckGo(await res.text()) : [];
   // DuckDuckGo answers automated clients with a bot challenge (HTTP 202). That is its decision to respect, so the
   // feature counts as needing a search provider key.
-  if (!hits.length) throw new ApiFail("not_configured", "Web search needs a Serper API key on the server: DuckDuckGo refuses automated searches.");
+  if (!hits.length) throw new ApiFail("not_configured", "Search needs SERPER_API_KEY or BRAVE_API_KEY on the server: DuckDuckGo refuses automated searches.");
   return hits;
 }
 
@@ -59,7 +77,7 @@ export function toItems(hits: Hit[]): DiscoverItem[] {
 
 export async function web(query: string, limit: number): Promise<{ items: DiscoverItem[]; note: string | null }> {
   // ask for extra results: directories, social profiles and duplicates are dropped
-  const hits = process.env.SERPER_API_KEY ? await serper(query, Math.min(limit * 2, 100)) : await duckduckgo(query);
+  const hits = await search(query, Math.min(limit * 2, 100));
   const items = toItems(hits).slice(0, limit);
   return { items, note: items.length ? null : "The search only returned directories and social profiles. Try naming the kind of company and a place." };
 }

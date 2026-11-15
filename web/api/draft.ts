@@ -1,10 +1,8 @@
 import type { DraftRequest } from "../shared/types.js";
 import { draft } from "../server/draft.js";
 import { ApiFail, endpoint, str, type Body } from "../server/http.js";
-import { aiConfigured } from "../server/openai.js";
 
 export default endpoint("draft", (body) => {
-  if (!aiConfigured()) throw new ApiFail("not_configured", "Drafting needs an OpenAI API key on the server");
   if (body.channel !== "email" && body.channel !== "linkedin") throw new ApiFail("bad_request", '"channel" must be email or linkedin');
   const offer = str(body, "offer", 1000);
   const prospect = body.prospect as DraftRequest["prospect"];

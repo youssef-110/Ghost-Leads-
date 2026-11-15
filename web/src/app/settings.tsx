@@ -54,7 +54,7 @@ export default function Settings({ ws, email, onRename, onSignOut }: Props) {
             : typeof health === "string" ? <Notice kind="info">Status is not available: {health}</Notice> : (
               <dl className="kv">
                 <dt>AI drafting and extraction</dt><dd><span className={`tag ${health.ai ? "tag-ok" : ""}`}>{health.ai ? "On" : "Off"}</span></dd>
-                <dt>Search provider</dt><dd>{health.search === "serper" ? "Serper (Google results)" : "Not set up: web search needs SERPER_API_KEY on the server"}</dd>
+                <dt>Search provider</dt><dd>{health.search === "serper" ? "Serper (Google results)" : health.search === "brave" ? "Brave Search" : "Not set up: web and LinkedIn search need SERPER_API_KEY or BRAVE_API_KEY on the server"}</dd>
                 <dt>Engine version</dt><dd className="num">{health.version}</dd>
               </dl>
             )}

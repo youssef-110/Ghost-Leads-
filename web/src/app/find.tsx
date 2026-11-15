@@ -13,9 +13,10 @@ const SOURCES: [Source, string, string][] = [
   ["startups", "Startups", "Startups by keyword, industry and location. All fields are optional."],
   ["hiring", "Hiring signals", "Companies with open roles that match a keyword."],
   ["directory", "Directory page", "Any exhibitor, member or partner list. Paste the address of the page."],
+  ["linkedin", "LinkedIn", "People or posts from public LinkedIn pages, found through a search engine. Ghost Leads never signs in to LinkedIn."],
   ["import", "Import", "Paste domains, URLs or work emails, or upload a CSV. Each is reduced to the company domain; free-mail addresses are left out. Read in your browser; nothing is uploaded until you save."],
 ];
-const BLANK = { query: "", location: "", industry: "", hiring: false, url: "", text: "" };
+const BLANK = { query: "", location: "", industry: "", hiring: false, url: "", text: "", mode: "people" as "people" | "posts" };
 type Result = { items: DiscoverItem[]; note: string | null; query: Record<string, unknown>; name: string; source: Source };
 
 export default function Find({ ws }: { ws: Ws }) {
@@ -47,6 +48,7 @@ export default function Find({ ws }: { ws: Ws }) {
     if (source === "web") return { source, query: f.query.trim() };
     if (source === "startups") return { source, query: t(f.query), industry: t(f.industry), location: t(f.location), hiring: f.hiring || undefined };
     if (source === "hiring") return { source, query: f.query.trim(), location: t(f.location) };
+    if (source === "linkedin") return { source, mode: f.mode, query: f.query.trim(), location: f.mode === "people" ? t(f.location) : undefined };
     return { source: "directory", url: f.url.trim() };
   }
 
@@ -133,6 +135,19 @@ export default function Find({ ws }: { ws: Ws }) {
             <label className="field"><span className="label">Role keyword</span><input className="input" required maxLength={120} value={f.query} onChange={set("query")} placeholder="account executive" /></label>
             <label className="field"><span className="label">Location (optional)</span><input className="input" maxLength={120} value={f.location} onChange={set("location")} placeholder="Remote, Europe" /></label>
           </>}
+          {source === "linkedin" && <>
+            <label className="field"><span className="label">Find</span>
+              <select className="input" value={f.mode} onChange={(e) => setF({ ...f, mode: e.target.value as "people" | "posts" })}>
+                <option value="people">People by role</option>
+                <option value="posts">Posts about a topic or event</option>
+              </select></label>
+            <label className="field grow"><span className="label">{f.mode === "people" ? "Role and industry" : "Topic or event"}</span>
+              <input className="input" required maxLength={200} value={f.query} onChange={set("query")}
+                placeholder={f.mode === "people" ? '"head of sales" logistics' : '"Web Summit" "see you in Lisbon"'} /></label>
+            {f.mode === "people" && (
+              <label className="field"><span className="label">Location (optional)</span><input className="input" maxLength={80} value={f.location} onChange={set("location")} placeholder="Berlin" /></label>
+            )}
+          </>}
           {source === "directory" && (
             <label className="field grow"><span className="label">Page address</span><input className="input" type="url" required maxLength={2000} value={f.url} onChange={set("url")} placeholder="https://example-expo.com/exhibitors" /></label>
           )}
@@ -157,7 +172,7 @@ export default function Find({ ws }: { ws: Ws }) {
       {res && (
         <section className="card results" aria-label="Results">
           <div className="results-head">
-            <span className="cell-main num">{res.items.length.toLocaleString()} {res.items.length === 1 ? "company" : "companies"}</span>
+            <span className="cell-main num">{res.items.length.toLocaleString()} {res.source === "linkedin" ? "results" : res.items.length === 1 ? "company" : "companies"}</span>
             <span className="small num">{picked.size.toLocaleString()} selected</span>
           </div>
           {res.note && <p className="results-note small">{res.note}</p>}
@@ -174,8 +189,11 @@ export default function Find({ ws }: { ws: Ws }) {
                 {res.items.map((it, i) => (
                   <tr key={i} className={picked.has(i) ? "" : "row-off"}>
                     <td className="col-check"><input type="checkbox" aria-label={`Select ${it.company_name}`} checked={picked.has(i)} onChange={() => toggle(i)} /></td>
-                    <td><div className="cell-main clamp">{it.company_name || "—"}</div>{it.industry && <div className="small clamp">{it.industry}</div>}</td>
-                    <td className="clamp">{it.domain ? <Ext href={it.website}>{it.domain}</Ext> : <span className="faint">—</span>}</td>
+                    <td><div className="cell-main clamp">{it.company_name || "—"}</div>{it.industry && <div className="small clamp">{it.industry}</div>}
+                      {it.person && it.person.name !== it.company_name && <div className="small clamp">{it.person.name}</div>}
+                      {it.person?.title && <div className="small clamp">{it.person.title}</div>}</td>
+                    <td className="clamp">{it.domain ? <Ext href={it.website}>{it.domain}</Ext>
+                      : safeUrl(it.person?.linkedin) ? <Ext href={it.person?.linkedin}>LinkedIn profile</Ext> : <span className="faint">—</span>}</td>
                     <td className="m-hide">{it.city || <span className="faint">—</span>}</td>
                     <td className="num nowrap m-hide">{it.phone || <span className="faint">—</span>}</td>
                     <td className="m-hide">{safeUrl(it.source_url) ? <SrcLink href={it.source_url} /> : <span className="faint">—</span>}</td>
