@@ -2,4 +2,4 @@ User-agent: *
 Allow: /
 Disallow: /app
 
-Sitemap: https://ghostleads.app/sitemap.xml
+Sitemap: https://ghost-leads-dusky.vercel.app/sitemap.xml

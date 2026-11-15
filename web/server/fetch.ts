@@ -9,7 +9,7 @@ import { ApiFail } from "./http.js";
 import { parseRobots, robotsAllows, type RobotsRule } from "./robots.js";
 
 // The one place the public site origin lives; /bot there tells site owners what this crawler does and how to opt out.
-export const PUBLIC_SITE_URL = (process.env.PUBLIC_SITE_URL ?? "https://ghost-leads.vercel.app").replace(/\/+$/, "");
+export const PUBLIC_SITE_URL = (process.env.PUBLIC_SITE_URL ?? "https://ghost-leads-dusky.vercel.app").replace(/\/+$/, "");
 export const USER_AGENT = `GhostLeadsBot/1.0 (+${PUBLIC_SITE_URL}/bot)`;
 const MAX_BYTES = 3 * 1024 * 1024;
 const MAX_REDIRECTS = 5;
